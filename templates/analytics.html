@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Analytics - Shoplite POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    .chart-container {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 200px;
+    }
+  </style>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3">
+  <link rel="alternate icon" href="/static/favicon.ico?v=3">
+  <link rel="icon" href="/static/img/favicon.ico?v=3">
+</head>
+<body class="bg-gray-50">
+  <!-- Header -->
+  <header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center py-4">
+        <div class="flex items-center space-x-4">
+          <div class="bg-blue-500 rounded-lg p-2">
+            <i class="fas fa-chart-bar text-white text-2xl"></i>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Shoplite POS Analytics</h1>
+            <p class="text-gray-600">Stats & Insights</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-4">
+          <button onclick="window.location.href='/'"
+                  class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition">
+            <i class="fas fa-arrow-left mr-2"></i>Back
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Tabs -->
+    <div class="bg-white rounded-lg shadow-sm mb-6">
+      <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8">
+          <button id="tab-sales" class="tab-button active border-b-2 border-blue-500 text-blue-600 px-3 py-4 font-medium">
+            <i class="fas fa-shopping-cart mr-2"></i>Sales
+          </button>
+          <button id="tab-inventory" class="tab-button border-b-2 border-transparent text-gray-500 hover:text-gray-700 px-3 py-4 font-medium">
+            <i class="fas fa-boxes mr-2"></i>Inventory
+          </button>
+          <button id="tab-profit" class="tab-button border-b-2 border-transparent text-gray-500 hover:text-gray-700 px-3 py-4 font-medium">
+            <i class="fas fa-euro-sign mr-2"></i>Profit
+          </button>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Sales Analytics Tab -->
+    <div id="sales-tab" class="tab-content active">
+      <!-- Quick Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div class="stat-card">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-blue-100 text-sm">Total Sales</p>
+              <p id="total-sales" class="text-2xl font-bold mt-1">€0.00</p>
+            </div>
+            <i class="fas fa-euro-sign text-blue-200 text-xl"></i>
+          </div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-pink-100 text-sm">Transactions</p>
+              <p id="total-transactions" class="text-2xl font-bold mt-1">0</p>
+            </div>
+            <i class="fas fa-receipt text-pink-200 text-xl"></i>
+          </div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-cyan-100 text-sm">Avg. Sale</p>
+              <p id="avg-sale" class="text-2xl font-bold mt-1">€0.00</p>
+            </div>
+            <i class="fas fa-chart-line text-cyan-200 text-xl"></i>
+          </div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-green-100 text-sm">Top Product</p>
+              <p id="top-product" class="text-lg font-bold mt-1">-</p>
+            </div>
+            <i class="fas fa-star text-green-200 text-xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row 1 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Sales Comparison Chart -->
+        <div class="chart-container">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-chart-line text-blue-500 mr-2"></i>
+            Year-over-Year Sales Comparison
+          </h3>
+          <div class="loading">
+            <i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i>
+          </div>
+          <canvas id="salesComparisonChart" height="250"></canvas>
+        </div>
+
+        <!-- Sales by Category Chart -->
+        <div class="chart-container">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-chart-pie text-green-500 mr-2"></i>
+            Sales by Category
+          </h3>
+          <div class="loading">
+            <i class="fas fa-spinner fa-spin text-2xl text-green-500"></i>
+          </div>
+          <canvas id="salesByCategoryChart" height="250"></canvas>
+        </div>
+      </div>
+
+      <!-- Charts Row 2 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Daily Sales Chart -->
+        <div class="chart-container">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-calendar-day text-purple-500 mr-2"></i>
+            Daily Sales (Last 30 Days)
+          </h3>
+          <div class="loading">
+            <i class="fas fa-spinner fa-spin text-2xl text-purple-500"></i>
+          </div>
+          <canvas id="dailySalesChart" height="250"></canvas>
+        </div>
+
+        <!-- Top Products Table -->
+        <div class="chart-container">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-trophy text-yellow-500 mr-2"></i>
+            Top 10 Selling Products
+          </h3>
+          <div class="loading">
+            <i class="fas fa-spinner fa-spin text-2xl text-yellow-500"></i>
+          </div>
+          <div id="topProductsTable" class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead>
+              <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Units</th>
+                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
+              </tr>
+              </thead>
+              <tbody id="topProductsBody" class="divide-y divide-gray-200"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inventory Analytics Tab -->
+    <div id="inventory-tab" class="tab-content hidden">
+      <!-- Inventory Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div class="stat-card">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-blue-100 text-sm">Total Inventory Value</p>
+              <p id="total-inventory-value" class="text-2xl font-bold mt-1">€0.00</p>
+            </div>
+            <i class="fas fa-warehouse text-blue-200 text-xl"></i>
+          </div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-pink-100 text-sm">Total Products</p>
+              <p id="total-products-count" class="text-2xl font-bold mt-1">0</p>
+            </div>
+            <i class="fas fa-box text-pink-200 text-xl"></i>
+          </div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-cyan-100 text-sm">Avg. Units per Product</p>
+              <p id="avg-stock" class="text-2xl font-bold mt-1">0</p>
+            </div>
+            <i class="fas fa-cubes text-cyan-200 text-xl"></i>
+          </div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-green-100 text-sm">Full Stock (est.)</p>
+              <p id="full-stock-percent" class="text-2xl font-bold mt-1">100%</p>
+            </div>
+            <i class="fas fa-check-circle text-green-200 text-xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inventory Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Inventory Value by Category -->
+        <div class="chart-container">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-chart-pie text-blue-500 mr-2"></i>
+            Inventory Value by Category
+          </h3>
+          <div class="loading">
+            <i class="fas fa-spinner fa-spin text-2xl text-blue-500"></i>
+          </div>
+          <canvas id="inventoryValueChart" height="250"></canvas>
+        </div>
+
+        <!-- Stock Turnover -->
+        <div class="chart-container">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-exchange-alt text-green-500 mr-2"></i>
+            High Turnover Products
+          </h3>
+          <div class="loading">
+            <i class="fas fa-spinner fa-spin text-2xl text-green-500"></i>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead>
+              <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Units Sold</th>
+                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Turnover</th>
+              </tr>
+              </thead>
+              <tbody id="turnoverTableBody" class="divide-y divide-gray-200"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profit Analytics Tab -->
+    <div id="profit-tab" class="tab-content hidden">
+      <!-- Profit Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div class="stat-card">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-blue-100 text-sm">Total Profit</p>
+              <p id="total-profit" class="text-2xl font-bold mt-1">€0.00</p>
+            </div>
+            <i class="fas fa-euro-sign text-blue-200 text-xl"></i>
+          </div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-pink-100 text-sm">Avg. Profit Margin</p>
+              <p id="avg-profit-margin" class="text-2xl font-bold mt-1">0%</p>
+            </div>
+            <i class="fas fa-percentage text-pink-200 text-xl"></i>
+          </div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-cyan-100 text-sm">Best Category</p>
+              <p id="best-category" class="text-lg font-bold mt-1">-</p>
+            </div>
+            <i class="fas fa-star text-cyan-200 text-xl"></i>
+          </div>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-green-100 text-sm">Best Product</p>
+              <p id="best-product" class="text-lg font-bold mt-1">-</p>
+            </div>
+            <i class="fas fa-crown text-green-200 text-xl"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profit Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Monthly Profits -->
+        <div class="chart-container">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-chart-line text-purple-500 mr-2"></i>
+            Monthly Profit (Last 12 Months)
+          </h3>
+          <div class="loading">
+            <i class="fas fa-spinner fa-spin text-2xl text-purple-500"></i>
+          </div>
+          <canvas id="monthlyProfitChart" height="250"></canvas>
+        </div>
+
+        <!-- Profit by Category -->
+        <div class="chart-container">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-chart-bar text-orange-500 mr-2"></i>
+            Profit by Category
+          </h3>
+          <div class="loading">
+            <i class="fas fa-spinner fa-spin text-2xl text-orange-500"></i>
+          </div>
+          <canvas id="profitByCategoryChart" height="250"></canvas>
+        </div>
+      </div>
+
+      <!-- Top Profitable Products -->
+      <div class="chart-container">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+          <i class="fas fa-trophy text-yellow-500 mr-2"></i>
+          Top 15 Profitable Products
+        </h3>
+        <div class="loading">
+          <i class="fas fa-spinner fa-spin text-2xl text-yellow-500"></i>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead>
+            <tr>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Units</th>
+              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
+              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
+              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Profit</th>
+              <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">% Profit</th>
+            </tr>
+            </thead>
+            <tbody id="profitableProductsBody" class="divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global chart instances
+    let charts = {};
+
+    // Tab management
+    document.querySelectorAll('.tab-button').forEach(button => {
+      button.addEventListener('click', function () {
+        document.querySelectorAll('.tab-button').forEach(btn => {
+          btn.classList.remove('active', 'border-blue-500', 'text-blue-600');
+          btn.classList.add('border-transparent', 'text-gray-500');
+        });
+        document.querySelectorAll('.tab-content').forEach(content => {
+          content.classList.add('hidden');
+          content.classList.remove('active');
+        });
+        this.classList.add('active', 'border-blue-500', 'text-blue-600');
+        this.classList.remove('border-transparent', 'text-gray-500');
+        const tabName = this.id.replace('tab-', '');
+        const content = document.getElementById(`${tabName}-tab`);
+        content.classList.remove('hidden');
+        content.classList.add('active');
+        loadTabData(tabName);
+      });
+    });
+
+    // Load data for specific tab
+    async function loadTabData(tabName) {
+      switch (tabName) {
+        case 'sales':
+          await loadSalesAnalytics();
+          break;
+        case 'inventory':
+          await loadInventoryAnalytics();
+          break;
+        case 'profit':
+          await loadProfitAnalytics();
+          break;
+      }
+    }
+
+    // Sales Analytics
+    async function loadSalesAnalytics() {
+      try {
+        showLoading('sales-tab');
+        const response = await fetch('/api/analytics/sales-overview');
+        const data = await response.json();
+
+        if (data.sales_comparison) {
+          updateSalesStats(data);
+          createSalesComparisonChart(data.sales_comparison);
+          createSalesByCategoryChart(data.sales_by_category);
+          createDailySalesChart(data.daily_sales);
+          updateTopProductsTable(data.top_products);
+        }
+        hideLoading('sales-tab');
+      } catch (error) {
+        console.error('Error loading sales analytics:', error);
+        hideLoading('sales-tab');
+      }
+    }
+
+    function updateSalesStats(data) {
+      const totalSales = data.sales_comparison.this_year.reduce((sum, val) => sum + val, 0);
+      const totalTransactions = (data.sales_comparison.this_year_tx || []).reduce((a, b) => a + b, 0);
+      const avgSale = totalTransactions > 0 ? totalSales / totalTransactions : 0;
+      const topProduct = data.top_products[0];
+
+      document.getElementById('total-sales').textContent = `€${totalSales.toFixed(2)}`;
+      document.getElementById('total-transactions').textContent = totalTransactions.toLocaleString();
+      document.getElementById('avg-sale').textContent = `€${avgSale.toFixed(2)}`;
+      document.getElementById('top-product').textContent = topProduct ? topProduct.name : '-';
+    }
+
+    function createSalesComparisonChart(comparisonData) {
+      const ctx = document.getElementById('salesComparisonChart').getContext('2d');
+      if (charts.salesComparison) charts.salesComparison.destroy();
+
+      charts.salesComparison = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: comparisonData.labels,
+          datasets: [
+            {
+              label: `This Year (${new Date().getFullYear()})`,
+              data: comparisonData.this_year,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              tension: 0.4,
+              fill: true
+            },
+            {
+              label: `Last Year (${new Date().getFullYear() - 1})`,
+              data: comparisonData.last_year,
+              borderColor: '#94a3b8',
+              backgroundColor: 'rgba(148, 163, 184, 0.1)',
+              tension: 0.4,
+              fill: true,
+              borderDash: [5, 5]
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: 'Monthly Sales'
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function (value) {
+                  return '€' + value.toLocaleString();
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function createSalesByCategoryChart(categoryData) {
+      const ctx = document.getElementById('salesByCategoryChart').getContext('2d');
+      if (charts.salesByCategory) charts.salesByCategory.destroy();
+
+      const colors = [
+        '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
+        '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#ec4899'
+      ];
+
+      charts.salesByCategory = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: categoryData.map(cat => cat.category_name || 'Uncategorized'),
+          datasets: [{
+            data: categoryData.map(cat => cat.total_sales),
+            backgroundColor: colors,
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'right' },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const label = context.label || '';
+                  const value = context.raw || 0;
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = total ? Math.round((value / total) * 100) : 0;
+                  return `${label}: €${Number(value).toFixed(2)} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function createDailySalesChart(dailyData) {
+      const ctx = document.getElementById('dailySalesChart').getContext('2d');
+      if (charts.dailySales) charts.dailySales.destroy();
+
+      charts.dailySales = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: dailyData.map(day => {
+            const date = new Date(day.date);
+            return date.getDate() + '/' + (date.getMonth() + 1);
+          }),
+          datasets: [{
+            label: 'Daily Sales',
+            data: dailyData.map(day => day.daily_sales),
+            backgroundColor: 'rgba(139, 92, 246, 0.7)',
+            borderColor: 'rgb(139, 92, 246)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function (value) {
+                  return '€' + value.toLocaleString();
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateTopProductsTable(products) {
+      const tbody = document.getElementById('topProductsBody');
+      tbody.innerHTML = '';
+
+      products.forEach(product => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="px-4 py-2 text-sm">
+            <div class="font-medium text-gray-900">${product.name}</div>
+            <div class="text-gray-500 text-xs">${product.barcode}</div>
+          </td>
+          <td class="px-4 py-2 text-sm text-right font-medium">
+            ${Number(product.total_sold).toLocaleString()}
+          </td>
+          <td class="px-4 py-2 text-sm text-right font-medium text-green-600">
+            €${Number(product.total_revenue).toFixed(2)}
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Inventory Analytics
+    async function loadInventoryAnalytics() {
+      try {
+        showLoading('inventory-tab');
+        const response = await fetch('/api/analytics/inventory-metrics');
+        const data = await response.json();
+
+        if (data.inventory_value) {
+          updateInventoryStats(data);
+          createInventoryValueChart(data.inventory_by_category);
+          updateTurnoverTable(data.product_turnover);
+        }
+        hideLoading('inventory-tab');
+      } catch (error) {
+        console.error('Error loading inventory analytics:', error);
+        hideLoading('inventory-tab');
+      }
+    }
+
+    function updateInventoryStats(data) {
+      const value = data.inventory_value;
+      document.getElementById('total-inventory-value').textContent = `€${Number(value.total_retail_value || 0).toFixed(2)}`;
+      document.getElementById('total-products-count').textContent = Number(value.total_products || 0).toLocaleString();
+      const avg = (value.total_units && value.total_products) ? (value.total_units / value.total_products) : 0;
+      document.getElementById('avg-stock').textContent = Math.round(avg);
+      document.getElementById('full-stock-percent').textContent = '100%'; // Placeholder
+    }
+
+    function createInventoryValueChart(categoryData) {
+      const ctx = document.getElementById('inventoryValueChart').getContext('2d');
+      if (charts.inventoryValue) charts.inventoryValue.destroy();
+
+      charts.inventoryValue = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: categoryData.map(cat => cat.category_name || 'Uncategorized'),
+          datasets: [{
+            label: 'Inventory Value (€)',
+            data: categoryData.map(cat => cat.retail_value),
+            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+            borderColor: 'rgb(59, 130, 246)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function (value) {
+                  return '€' + value.toLocaleString();
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateTurnoverTable(turnoverData) {
+      const tbody = document.getElementById('turnoverTableBody');
+      tbody.innerHTML = '';
+
+      turnoverData.forEach(product => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="px-4 py-2 text-sm">
+            <div class="font-medium text-gray-900">${product.name}</div>
+            <div class="text-gray-500 text-xs">Stock: ${product.quantity}</div>
+          </td>
+          <td class="px-4 py-2 text-sm text-right font-medium">
+            ${product.units_sold}
+          </td>
+          <td class="px-4 py-2 text-sm text-right font-medium">
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+              product.turnover_ratio > 1 ? 'bg-green-100 text-green-800' :
+              product.turnover_ratio > 0.5 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+            }">
+              ${Number(product.turnover_ratio).toFixed(2)}
+            </span>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Profit Analytics
+    async function loadProfitAnalytics() {
+      try {
+        showLoading('profit-tab');
+        const response = await fetch('/api/analytics/profit-analysis');
+        const data = await response.json();
+
+        if (data.monthly_profits) {
+          updateProfitStats(data);
+          createMonthlyProfitChart(data.monthly_profits);
+          createProfitByCategoryChart(data.profit_by_category);
+          updateProfitableProductsTable(data.top_profitable_products);
+        }
+        hideLoading('profit-tab');
+      } catch (error) {
+        console.error('Error loading profit analytics:', error);
+        hideLoading('profit-tab');
+      }
+    }
+
+    function updateProfitStats(data) {
+      const totalProfit = data.monthly_profits.reduce((sum, month) => sum + (month.profit || 0), 0);
+      const avgMargin = data.profit_by_category.length > 0 ?
+        data.profit_by_category.reduce((sum, cat) => sum + (cat.profit_margin || 0), 0) / data.profit_by_category.length : 0;
+      const bestCategory = data.profit_by_category[0];
+      const bestProduct = data.top_profitable_products[0];
+
+      document.getElementById('total-profit').textContent = `€${Number(totalProfit).toFixed(2)}`;
+      document.getElementById('avg-profit-margin').textContent = `${Number(avgMargin).toFixed(1)}%`;
+      document.getElementById('best-category').textContent = bestCategory ? bestCategory.category_name : '-';
+      document.getElementById('best-product').textContent = bestProduct ? bestProduct.name : '-';
+    }
+
+    function createMonthlyProfitChart(monthlyData) {
+      const ctx = document.getElementById('monthlyProfitChart').getContext('2d');
+      if (charts.monthlyProfit) charts.monthlyProfit.destroy();
+
+      charts.monthlyProfit = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: monthlyData.map(month => {
+            const [year, monthNum] = month.month.split('-');
+            return `${monthNum}/${year.slice(2)}`;
+          }),
+          datasets: [
+            {
+              label: 'Profit',
+              data: monthlyData.map(month => month.profit),
+              borderColor: '#8b5cf6',
+              backgroundColor: 'rgba(139, 92, 246, 0.1)',
+              tension: 0.4,
+              fill: true
+            },
+            {
+              label: 'Revenue',
+              data: monthlyData.map(month => month.revenue),
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              tension: 0.4,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function (value) {
+                  return '€' + value.toLocaleString();
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function createProfitByCategoryChart(categoryData) {
+      const ctx = document.getElementById('profitByCategoryChart').getContext('2d');
+      if (charts.profitByCategory) charts.profitByCategory.destroy();
+
+      const colors = [
+        '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6',
+        '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#ec4899'
+      ];
+
+      charts.profitByCategory = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: categoryData.map(cat => cat.category_name || 'Uncategorized'),
+          datasets: [{
+            label: 'Profit (€)',
+            data: categoryData.map(cat => cat.profit),
+            backgroundColor: colors,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function (value) {
+                  return '€' + value.toLocaleString();
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateProfitableProductsTable(products) {
+      const tbody = document.getElementById('profitableProductsBody');
+      tbody.innerHTML = '';
+
+      products.forEach(product => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td class="px-4 py-2 text-sm">
+            <div class="font-medium text-gray-900">${product.name}</div>
+            <div class="text-gray-500 text-xs">${product.barcode}</div>
+          </td>
+          <td class="px-4 py-2 text-sm text-right">
+            ${Number(product.units_sold).toLocaleString()}
+          </td>
+          <td class="px-4 py-2 text-sm text-right text-green-600">
+            €${Number(product.revenue).toFixed(2)}
+          </td>
+          <td class="px-4 py-2 text-sm text-right text-red-600">
+            €${Number(product.cost).toFixed(2)}
+          </td>
+          <td class="px-4 py-2 text-sm text-right font-medium text-green-700">
+            €${Number(product.profit).toFixed(2)}
+          </td>
+          <td class="px-4 py-2 text-sm text-right">
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+              product.profit_margin > 30 ? 'bg-green-100 text-green-800' :
+              product.profit_margin > 15 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+            }">
+              ${Number(product.profit_margin).toFixed(1)}%
+            </span>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // Utility functions
+    function showLoading(tabId) {
+      const tab = document.getElementById(tabId);
+      tab.querySelectorAll('.loading').forEach(loading => loading.classList.remove('hidden'));
+    }
+    function hideLoading(tabId) {
+      const tab = document.getElementById(tabId);
+      tab.querySelectorAll('.loading').forEach(loading => loading.classList.add('hidden'));
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function () {
+      loadSalesAnalytics();
+    });
+  </script>
+</body>
+</html>

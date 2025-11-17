@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Point of Sale - Shoplite POS Inventory</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .cart-item { transition: all 0.3s ease; }
+        .cart-item:hover { background-color: #f8fafc; }
+        .barcode-scanner { 
+            border: 2px dashed #d1d5db; 
+            transition: all 0.3s ease;
+        }
+        .barcode-scanner:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .scanner-active {
+            animation: pulse 1.5s infinite;
+            border-color: #3b82f6 !important;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            line-height: 1;
+            border-radius: 9999px;
+        }
+        .badge-low { background-color: #fee2e2; color: #991b1b; }
+        .badge-ok { background-color: #dcfce7; color: #166534; }
+        .pos-btn {
+            transition: all 0.2s ease;
+        }
+        .pos-btn:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.05);
+        }
+        .pos-btn:active {
+            transform: translateY(0);
+            filter: brightness(0.98);
+        }
+    </style>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3">
+    <link rel="alternate icon" href="/static/favicon.ico?v=3">
+    <link rel="icon" href="/static/img/favicon.ico?v=3">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-blue-500 rounded-lg p-2">
+                        <i class="fas fa-cash-register text-white text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">Shoplite POS</h1>
+                        <p class="text-gray-600">Sales & Checkout System</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <!-- Exit Button -->
+                    <!-- Exit Button -->
+<button onclick="closePOSWindow()"
+        class="pos-btn bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center shadow-sm">
+    <i class="fas fa-arrow-left mr-2"></i>
+    <span>Exit</span>
+</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column: Scan + Products -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Scan Section -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                            <i class="fas fa-barcode mr-2 text-blue-500"></i>
+                            Barcode Scan
+                        </h2>
+                        <div class="flex items-center space-x-2">
+                            <button id="focus-scanner" 
+                                    class="pos-btn bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg shadow-sm">
+                                <i class="fas fa-bullseye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-2">
+                            <input type="text" id="barcode-input" 
+                                   placeholder="Scan barcode or type..." 
+                                   class="barcode-scanner w-full px-4 py-3 rounded-lg focus:outline-none" />
+                        </div>
+                        <div class="md:col-span-1 flex items-center">
+                            <button id="add-barcode" 
+                                    class="pos-btn w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg font-semibold shadow-sm">
+                                <i class="fas fa-plus mr-2"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-2">Each scan automatically adds 1 unit</p>
+                </div>
+
+                <!-- Products Grid -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                            <i class="fas fa-boxes mr-2 text-green-500"></i>
+                            Products
+                        </h2>
+                        <div class="flex space-x-2">
+                            <input type="text" id="pos-search" placeholder="Search..." 
+                                   class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    
+                    <div id="pos-products" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div class="col-span-1 md:col-span-2 xl:col-span-3 text-center text-gray-500">
+                            <p class="text-gray-500 text-lg">Loading products...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Cart -->
+            <div class="space-y-6">
+                <!-- Cart -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                            <i class="fas fa-shopping-cart mr-2 text-indigo-500"></i>
+                            Shopping Cart
+                        </h2>
+                        <div class="space-x-2">
+                            <button id="empty-cart" class="pos-btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded-lg">
+                                <i class="fas fa-trash mr-1"></i> Empty
+                            </button>
+                        </div>
+                    </div>
+                    <div id="cart-items" class="space-y-3">
+                        <div class="text-gray-500 text-center py-6">
+                            <p>The cart is empty</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 border-t pt-4">
+                        <div class="flex justify-between items-center">
+                            <span class="font-semibold text-gray-700">Total:</span>
+                            <span id="cart-total" class="text-2xl font-bold text-gray-900">€0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment -->
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-credit-card mr-2 text-purple-500"></i>
+                        Payment
+                    </h2>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Payment Amount</label>
+                            <input type="number" id="payment-amount" step="0.01" min="0" 
+                                   class="w-full border border-gray-300 rounded-lg px-4 py-2 mt-1 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00">
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button class="pos-btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded-lg quick-amount" data-amount="5">+ €5</button>
+                            <button class="pos-btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded-lg quick-amount" data-amount="10">+ €10</button>
+                            <button class="pos-btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded-lg quick-amount" data-amount="20">+ €20</button>
+                        </div>
+
+                        <div class="bg-gray-50 rounded-lg p-3">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Total:</span>
+                                <span id="summary-total" class="font-semibold text-gray-800">€0.00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Payment Amount:</span>
+                                <span id="summary-payment" class="font-semibold text-gray-800">€0.00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="font-bold text-gray-800">Change:</span>
+                                <span id="summary-change" class="font-bold text-green-600">€0.00</span>
+                            </div>
+                            <p id="payment-warning" class="text-red-600 text-sm mt-2 hidden">
+                                Payment amount is less than the total
+                            </p>
+                        </div>
+
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-2">Payment Methods</h3>
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="flex items-center space-x-2 border rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="payment-method" value="CASH" checked class="text-blue-500">
+                                    <span class="font-medium">Cash</span>
+                                </label>
+                                <label class="flex items-center space-x-2 border rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="payment-method" value="CARD" class="text-blue-500">
+                                    <span class="font-medium">Credit Card</span>
+                                </label>
+                                <label class="flex items-center space-x-2 border rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="payment-method" value="CHEQUE" class="text-blue-500">
+                                    <span class="font-medium">Cheque</span>
+                                </label>
+                            </div>
+                        </div>
+
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <button id="complete-sale" class="pos-btn bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-semibold shadow-sm">
+                                <i class="fas fa-check mr-2"></i> Complete Sale
+                            </button>
+                            <button id="cancel-sale" class="pos-btn bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-3 rounded-lg font-semibold shadow-sm">
+                                <i class="fas fa-times mr-2"></i> Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Receipt -->
+                <div id="receipt-section" class="bg-white rounded-xl shadow-sm p-6 border border-gray-200 hidden">
+                    <h3 class="text-xl font-semibold text-gray-800">Sale Receipt</h3>
+                    <div class="mt-4 bg-gray-50 rounded-lg p-4">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Receipt:</span>
+                            <span id="receipt-number" class="font-semibold text-gray-800">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Total:</span>
+                            <span id="receipt-total" class="font-semibold text-gray-800">€0.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Payment Method:</span>
+                            <span id="receipt-method" class="font-semibold text-gray-800">-</span>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex space-x-2">
+                        <button id="new-sale" class="pos-btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                            <i class="fas fa-plus mr-2"></i> New Sale
+                        </button>
+                        <button id="print-receipt" class="pos-btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">
+                            <i class="fas fa-print mr-2"></i> Print
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div id="pos-toast" class="fixed bottom-6 right-6 hidden">
+            <div class="bg-white border border-gray-200 rounded-lg shadow-lg p-4 flex items-center space-x-3">
+                <i id="pos-toast-icon" class="fas fa-info-circle text-blue-500"></i>
+                <div>
+                    <p id="pos-toast-title" class="font-semibold text-gray-800">Info</p>
+                    <p id="pos-toast-message" class="text-gray-600">Message</p>
+                </div>
+                <button onclick="hidePOSToast()" class="ml-4 text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load POS products
+        async function loadPOSProducts() {
+            try {
+                const res = await fetch('/api/products');
+                const products = await res.json();
+                renderPOSProducts(products);
+            } catch (error) {
+                console.error('Error loading POS products:', error);
+                showPOSMessage('Error loading products', 'error');
+            }
+        }
+
+        // Render POS products
+        function renderPOSProducts(products) {
+            const container = document.getElementById('pos-products');
+            container.innerHTML = '';
+
+            const q = (document.getElementById('pos-search').value || '').toLowerCase().trim();
+            const filtered = products.filter(p => 
+                p.name.toLowerCase().includes(q) || (p.barcode || '').toLowerCase().includes(q)
+            );
+
+            if (!filtered.length) {
+                const empty = document.createElement('div');
+                empty.className = 'col-span-1 md:col-span-2 xl:col-span-3 text-center text-gray-500';
+                empty.innerHTML = `<p class="text-gray-500 text-lg">No products found</p>`;
+                container.appendChild(empty);
+                return;
+            }
+
+            filtered.forEach(product => {
+                const isLowStock = (product.quantity || 0) <= (product.min_stock || 0);
+                const card = document.createElement('div');
+                card.className = 'border border-gray-200 rounded-lg p-4 hover:shadow-sm transition';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="text-sm text-gray-500">${product.category_name || ''}</div>
+                            <div class="font-semibold text-gray-900">${product.name}</div>
+                            <div class="text-xs text-gray-500">${product.barcode || ''}</div>
+                        </div>
+                        ${isLowStock ? '<span class="badge badge-low">Low</span>' : '<span class="badge badge-ok">OK</span>'}
+                    </div>
+                    <div class="mt-3 flex items-end justify-between">
+                        <div>
+                            <div class="text-lg font-bold text-gray-900">€${(product.retail_price || 0).toFixed(2)}</div>
+                            <div class="text-gray-500 text-sm">${product.quantity} pcs</div>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button class="pos-btn bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg add-to-cart" data-barcode="${product.barcode}">
+                                <i class="fas fa-cart-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Add product to cart
+        async function addProductToCart(barcode) {
+            if (!barcode) {
+                showPOSMessage('Please enter a barcode', 'warning');
+                return;
+            }
+            try {
+                const res = await fetch('/api/pos/add-to-cart', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ barcode, quantity: 1 })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    addToCartUI(result.product);
+                    showPOSMessage(`✅ Added: ${result.product.name}`, 'success');
+                } else {
+                    showPOSMessage(result.message || 'Error adding product', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                showPOSMessage('Error adding product', 'error');
+            }
+        }
+
+        // Cart state
+        let cart = [];
+
+        // Update cart UI
+        function renderCart() {
+            const container = document.getElementById('cart-items');
+            container.innerHTML = '';
+
+            if (!cart.length) {
+                container.innerHTML = `
+                    <div class="text-gray-500 text-center py-6">
+                        <p>The cart is empty</p>
+                    </div>`;
+                updateTotals();
+                return;
+            }
+
+            cart.forEach((item, idx) => {
+                const row = document.createElement('div');
+                row.className = 'cart-item border border-gray-200 rounded-lg p-3';
+                row.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="font-semibold text-gray-900">${item.name}</div>
+                            <div class="text-xs text-gray-500">${item.barcode || ''}</div>
+                        </div>
+                        <button class="pos-btn text-gray-400 hover:text-red-600" data-remove="${idx}">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="mt-2 grid grid-cols-12 gap-2 items-center">
+                        <div class="col-span-5 text-gray-700">
+                            <span class="text-sm">Unit Price:</span>
+                            <span class="font-semibold">€${(item.retail_price || 0).toFixed(2)}</span>
+                        </div>
+                        <div class="col-span-4 flex items-center space-x-2">
+                            <button class="pos-btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-2 py-1 rounded" data-minus="${idx}">
+                                <i class="fas fa-minus"></i>
+                            </button>
+                            <input type="number" class="w-16 text-center border rounded px-2 py-1" min="1" value="${item.quantity}">
+                            <button class="pos-btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-2 py-1 rounded" data-plus="${idx}">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                        <div class="col-span-3 text-right font-semibold text-gray-900">
+                            €${(item.retail_price * item.quantity).toFixed(2)}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+
+            updateTotals();
+        }
+
+        function addToCartUI(product) {
+            const existing = cart.find(x => x.barcode === product.barcode);
+            if (existing) {
+                existing.quantity += 1;
+            } else {
+                cart.push({
+                    barcode: product.barcode,
+                    name: product.name,
+                    retail_price: product.retail_price || 0,
+                    quantity: 1
+                });
+            }
+            renderCart();
+        }
+
+        // Cart operations
+        document.getElementById('cart-items').addEventListener('click', (e) => {
+            const minus = e.target.closest('[data-minus]');
+            const plus = e.target.closest('[data-plus]');
+            const remove = e.target.closest('[data-remove]');
+            const qtyInput = e.target.tagName === 'INPUT' ? e.target : null;
+
+            if (minus) {
+                const idx = Number(minus.getAttribute('data-minus'));
+                cart[idx].quantity = Math.max(1, (cart[idx].quantity || 1) - 1);
+                renderCart();
+            } else if (plus) {
+                const idx = Number(plus.getAttribute('data-plus'));
+                cart[idx].quantity = (cart[idx].quantity || 1) + 1;
+                renderCart();
+            } else if (remove) {
+                const idx = Number(remove.getAttribute('data-remove'));
+                cart.splice(idx, 1);
+                renderCart();
+                showPOSMessage('Item removed from cart', 'info');
+            } else if (qtyInput) {
+                const wrapper = qtyInput.closest('.grid');
+                const nodes = [...document.querySelectorAll('#cart-items input[type=number]')];
+                const idx = nodes.indexOf(qtyInput);
+                let val = Math.max(1, Number(qtyInput.value) || 1);
+                cart[idx].quantity = val;
+                renderCart();
+            }
+        });
+
+        document.getElementById('empty-cart').addEventListener('click', () => {
+            if (confirm('Are you sure you want to empty the cart?')) {
+                cart = [];
+                renderCart();
+                showPOSMessage('Cart emptied', 'info');
+            }
+        });
+
+        // Totals
+        // Totals
+function updateTotals() {
+    const total = cart.reduce((s, it) => s + (it.retail_price || 0) * (it.quantity || 0), 0);
+    document.getElementById('cart-total').textContent = `€${total.toFixed(2)}`;
+    document.getElementById('summary-total').textContent = `€${total.toFixed(2)}`;
+
+    const pay = Number(document.getElementById('payment-amount').value || 0);
+    document.getElementById('summary-payment').textContent = `€${pay.toFixed(2)}`;
+
+    const change = Math.max(0, pay - total);
+    document.getElementById('summary-change').textContent = `€${change.toFixed(2)}`;
+
+    const warn = document.getElementById('payment-warning');
+    if (pay < total) {
+        warn.classList.remove('hidden');
+    } else {
+        warn.classList.add('hidden');
+    }
+}
+
+        document.getElementById('payment-amount').addEventListener('input', updateTotals);
+        document.querySelectorAll('.quick-amount').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const amt = Number(btn.dataset.amount || 0);
+                const inp = document.getElementById('payment-amount');
+                inp.value = (Number(inp.value || 0) + amt).toFixed(2);
+                updateTotals();
+            });
+        });
+
+        // Complete sale
+        document.getElementById('complete-sale').addEventListener('click', async () => {
+            if (!cart.length) {
+                showPOSMessage('Cart is empty', 'warning');
+                return;
+            }
+            const totalAmount = cart.reduce((s, it) => s + (it.retail_price || 0) * (it.quantity || 0), 0);
+            const paymentAmount = Number(document.getElementById('payment-amount').value || 0);
+            const paymentMethod = (document.querySelector('input[name="payment-method"]:checked')?.value || 'CASH');
+
+            // Cash check
+            if (paymentMethod === 'CASH' && paymentAmount < totalAmount) {
+                showPOSMessage('Payment amount is less than the total', 'error');
+                return;
+            }
+
+            try {
+                const payload = {
+                    cart_items: cart.map(it => ({ barcode: it.barcode, quantity: it.quantity })),
+                    payment_method: paymentMethod,
+                    total_amount: totalAmount,
+                    payment_amount: paymentMethod === 'CASH' ? paymentAmount : totalAmount
+                };
+                const res = await fetch('/api/pos/complete-sale', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    cart = [];
+                    renderCart();
+
+                    // Receipt
+                    const receiptSection = document.getElementById('receipt-section');
+                    const receiptNumber = document.getElementById('receipt-number');
+                    const receiptTotal = document.getElementById('receipt-total');
+                    const receiptMethod = document.getElementById('receipt-method');
+
+                    receiptNumber.textContent = `Number: ${result.receipt_number}`;
+                    receiptTotal.textContent = `€${(result.total_amount || totalAmount).toFixed(2)}`;
+                    // Add payment info
+                    receiptMethod.textContent = paymentMethod === 'CASH' ? 
+                        `Cash (Change: €${(result.change || 0).toFixed(2)})` : paymentMethod;
+
+                    receiptSection.classList.remove('hidden');
+                    showPOSMessage('Sale completed', 'success');
+                } else {
+                    showPOSMessage(result.message || 'Error completing sale', 'error');
+                }
+            } catch (error) {
+                console.error(error);
+                showPOSMessage('Error completing sale', 'error');
+            }
+        });
+
+        document.getElementById('cancel-sale').addEventListener('click', () => {
+            cart = [];
+            document.getElementById('payment-amount').value = '';
+            renderCart();
+            document.getElementById('receipt-section').classList.add('hidden');
+        });
+
+        // Focus scanner input
+        document.getElementById('focus-scanner').addEventListener('click', () => {
+            const inp = document.getElementById('barcode-input');
+            inp.focus();
+            inp.classList.add('scanner-active');
+            setTimeout(() => inp.classList.remove('scanner-active'), 700);
+        });
+        document.getElementById('barcode-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const code = (document.getElementById('barcode-input').value || '').trim();
+                if (code) addProductToCart(code);
+                document.getElementById('barcode-input').value = '';
+            }
+        });
+        document.getElementById('add-barcode').addEventListener('click', () => {
+            const code = (document.getElementById('barcode-input').value || '').trim();
+            if (code) addProductToCart(code);
+            document.getElementById('barcode-input').value = '';
+        });
+
+        // Close receipt / New sale
+        document.getElementById('new-sale').addEventListener('click', () => {
+            document.getElementById('receipt-section').classList.add('hidden');
+            document.getElementById('payment-amount').value = '';
+            renderCart();
+        });
+
+        // Print
+        document.getElementById('print-receipt').addEventListener('click', () => {
+            window.print();
+        });
+
+        // POS message (toast)
+        function showPOSMessage(message, type = 'info') {
+            const toast = document.getElementById('pos-toast');
+            const icon = document.getElementById('pos-toast-icon');
+            const title = document.getElementById('pos-toast-title');
+            const text = document.getElementById('pos-toast-message');
+
+            const cfg = {
+                info:   { icon: 'fa-info-circle',  color: 'text-blue-500',  title: 'Info' },
+                success:{ icon: 'fa-check-circle', color: 'text-green-600', title: 'Success' },
+                warning:{ icon: 'fa-exclamation-triangle', color: 'text-yellow-600', title: 'Warning' },
+                error:  { icon: 'fa-times-circle', color: 'text-red-600',   title: 'Error' }
+            }[type] || { icon: 'fa-info-circle', color: 'text-blue-500', title: 'Info' };
+
+            icon.className = `fas ${cfg.icon} ${cfg.color}`;
+            title.textContent = cfg.title;
+            text.textContent = message;
+
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 2500);
+        }
+        function hidePOSToast() {
+            document.getElementById('pos-toast').classList.add('hidden');
+        }
+
+        // Clock (optional)
+        function updateClock() { /* Update clock if you add one */ }
+
+        // Close POS window (if bridged)
+        async function closePOSWindow() {
+            try { await fetch('/close_pos_window', { method: 'POST' }); } catch(e){}
+        }
+
+        // Product search
+        document.getElementById('pos-search').addEventListener('input', loadPOSProducts);
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPOSProducts();
+            renderCart();
+            updateTotals();
+        });
+
+        // Add to cart via grid button
+        document.getElementById('pos-products').addEventListener('click', (e) => {
+            const btn = e.target.closest('.add-to-cart');
+            if (btn) {
+                const bc = btn.getAttribute('data-barcode');
+                addProductToCart(bc);
+            }
+        });
+    </script>
+</body>
+</html>

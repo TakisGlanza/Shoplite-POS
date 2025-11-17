@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>License - Shoplite POS</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center">
+
+  <div class="w-full max-w-3xl bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 p-8">
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center space-x-3">
+        <div class="bg-blue-500 rounded-xl p-3">
+          <i class="fas fa-key text-2xl text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold">Shoplite POS License</h1>
+          <p class="text-sm text-slate-300">Trial & activation management</p>
+        </div>
+      </div>
+      <div class="text-right text-xs text-slate-400">
+        <div id="license-status-label" class="font-semibold uppercase"></div>
+        <div id="license-status-sub" class="text-[11px]"></div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Trial block -->
+      <div class="bg-slate-900/60 rounded-xl border border-slate-700 p-4 flex flex-col justify-between">
+        <div>
+          <h2 class="text-lg font-semibold mb-2 flex items-center">
+            <i class="fas fa-hourglass-half text-amber-400 mr-2"></i>
+            Trial Mode
+          </h2>
+          <p class="text-sm text-slate-300 mb-3">
+            You can use Shoplite POS in trial mode for <span id="trial-days">5</span> days.
+          </p>
+          <div id="trial-info" class="text-sm text-slate-200">
+            <!-- Συμπληρώνεται από JS -->
+          </div>
+        </div>
+        <div class="mt-4">
+          <button id="btn-start-trial"
+                  class="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold py-2 rounded-lg flex items-center justify-center space-x-2">
+            <i class="fas fa-play"></i>
+            <span>Start / Continue Trial</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- License activation block -->
+      <div class="bg-slate-900/60 rounded-xl border border-slate-700 p-4 flex flex-col justify-between">
+        <div>
+          <h2 class="text-lg font-semibold mb-2 flex items-center">
+            <i class="fas fa-certificate text-emerald-400 mr-2"></i>
+            Full License
+          </h2>
+          <p class="text-sm text-slate-300 mb-3">
+            If you have purchased Shoplite POS, activate your full license here.
+          </p>
+
+          <!-- Στο μέλλον εδώ θα μπει ροή "Get license from server" -->
+          <!-- Προς το παρόν: manual license key input (offline) -->
+
+          <label class="block text-xs font-semibold text-slate-300 mb-1">
+            License key
+          </label>
+          <input id="license-key-input" type="text"
+                 placeholder="SHOPLITE-XXXX-YYYY"
+                 class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 mb-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"/>
+
+          <p class="text-[11px] text-slate-400 mb-2">
+            In a future version, this screen can contact an online license server
+            to automatically retrieve and activate the license for this device.
+          </p>
+        </div>
+        <div class="mt-4 space-y-2">
+          <button id="btn-activate"
+                  class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-semibold py-2 rounded-lg flex items-center justify-center space-x-2">
+            <i class="fas fa-unlock-keyhole"></i>
+            <span>Activate License</span>
+          </button>
+          <div id="license-message" class="text-xs text-center text-slate-300 mt-1"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 flex items-center justify-between">
+      <div class="text-xs text-slate-400">
+        Data folder: <span class="font-mono" id="data-folder-label">Documents\ShopLite_POS</span>
+      </div>
+      <button id="btn-enter-app"
+              class="bg-blue-500 hover:bg-blue-600 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-semibold px-4 py-2 rounded-lg flex items-center space-x-2">
+        <i class="fas fa-right-to-bracket"></i>
+        <span>Enter Application</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    let statusCache = null;
+
+    async function fetchStatus() {
+      const res = await fetch("/api/license/status");
+      if (!res.ok) throw new Error("Status error");
+      const data = await res.json();
+      statusCache = data;
+      return data;
+    }
+
+    async function startTrial() {
+      const res = await fetch("/api/license/start_trial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      if (!res.ok) throw new Error("Trial error");
+      const data = await res.json();
+      statusCache = data;
+      return data;
+    }
+
+    async function activateLicense() {
+      const key = document.getElementById("license-key-input").value.trim();
+      const msgEl = document.getElementById("license-message");
+      msgEl.textContent = "";
+      if (!key) {
+        msgEl.textContent = "Please enter a license key.";
+        return;
+      }
+      const res = await fetch("/api/license/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ license_key: key })
+      });
+      const data = await res.json();
+      if (data.success) {
+        msgEl.textContent = data.message || "License activated.";
+        await refreshUI();
+      } else {
+        msgEl.textContent = data.message || "Activation failed.";
+      }
+    }
+
+    function updateUI(data) {
+      document.getElementById("trial-days").textContent = data.trial_days;
+
+      const label = document.getElementById("license-status-label");
+      const sub = document.getElementById("license-status-sub");
+      const trialInfo = document.getElementById("trial-info");
+      const btnEnter = document.getElementById("btn-enter-app");
+      const btnTrial = document.getElementById("btn-start-trial");
+
+      if (data.activated) {
+        label.textContent = "LICENSED";
+        sub.textContent = "Full version active";
+        trialInfo.textContent = "Full license is active on this device.";
+        btnEnter.disabled = false;
+        btnTrial.disabled = true;
+      } else if (data.first_run && data.trial_valid) {
+        label.textContent = "TRIAL ACTIVE";
+        const remaining = data.trial_days - data.days_used;
+        sub.textContent = `Day ${data.days_used} of ${data.trial_days} (Remaining: ${remaining >= 0 ? remaining : 0})`;
+        trialInfo.textContent = `Trial started on ${data.first_run}. You can continue using Shoplite POS during the trial period.`;
+        btnEnter.disabled = false;
+        btnTrial.disabled = false;
+      } else if (!data.first_run) {
+        label.textContent = "NO TRIAL";
+        sub.textContent = "Trial has not started";
+        trialInfo.textContent = "Click the button below to start your trial period.";
+        btnEnter.disabled = true;
+        btnTrial.disabled = false;
+      } else {
+        label.textContent = "TRIAL EXPIRED";
+        sub.textContent = `Trial period of ${data.trial_days} days has ended.`;
+        trialInfo.textContent = "Please activate a full license to continue using Shoplite POS.";
+        btnEnter.disabled = true;
+        btnTrial.disabled = true;
+      }
+    }
+
+    async function refreshUI() {
+      const data = await fetchStatus();
+      updateUI(data);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("btn-start-trial").addEventListener("click", async () => {
+        try {
+          await startTrial();
+          await refreshUI();
+        } catch (e) {
+          alert("Error starting trial.");
+        }
+      });
+
+      document.getElementById("btn-activate").addEventListener("click", async () => {
+        try {
+          await activateLicense();
+        } catch (e) {
+          alert("Error activating license.");
+        }
+      });
+
+      document.getElementById("btn-enter-app").addEventListener("click", () => {
+        if (!statusCache) return;
+        if (statusCache.activated || statusCache.trial_valid) {
+          window.location.href = "/";
+        }
+      });
+
+      refreshUI().catch(() => {
+        alert("License system error");
+      });
+    });
+  </script>
+</body>
+</html>

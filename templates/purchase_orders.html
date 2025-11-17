@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Supplier Orders - Shoplite POS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    .btn { transition: all .2s ease }
+    .btn:hover { transform: translateY(-1px) }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 50 }
+    .modal.open { display: flex }
+    .badge { padding: .25rem .5rem; border-radius: 9999px; font-size: .75rem; font-weight: 600 }
+    .badge-pending { background:#fff7ed; color:#9a3412 }
+    .badge-ordered { background:#eff6ff; color:#1d4ed8 }
+    .badge-received { background:#ecfdf5; color:#065f46 }
+    .badge-cancelled { background:#fee2e2; color:#991b1b }
+    .table th { font-size:.72rem; letter-spacing:.02em; text-transform:uppercase }
+    .input, select { outline: none }
+  </style>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3">
+  <link rel="alternate icon" href="/static/favicon.ico?v=3">
+  <link rel="icon" href="/static/img/favicon.ico?v=3">
+</head>
+<body class="bg-gray-50">
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-blue-600 p-2 rounded-lg text-white">
+          <i class="fas fa-truck-loading text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Supplier Orders</h1>
+          <p class="text-gray-600">Create, track, receive and export purchase orders</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button onclick="window.location.href='/'" class="btn bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
+          <i class="fa fa-arrow-left mr-2"></i>Back
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Toolbar -->
+    <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 mb-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+        <div class="lg:col-span-3">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+          <select id="filter-supplier" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+            <option value="">All suppliers</option>
+          </select>
+        </div>
+        <div class="lg:col-span-3">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <select id="filter-status" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+            <option value="">All</option>
+            <option value="pending">Pending</option>
+            <option value="ordered">Ordered</option>
+            <option value="received">Received</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div class="lg:col-span-3">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+          <input id="filter-search" type="text" placeholder="Order #, notes…" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+        </div>
+        <div class="lg:col-span-3 flex flex-wrap gap-2">
+          <button id="btn-new" class="btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+            <i class="fa fa-plus mr-2"></i>Create Order
+          </button>
+          <button id="btn-export-all" class="btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">
+            <i class="fa fa-file-export mr-2"></i>Export All (CSV)
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white border border-gray-200 rounded-xl shadow-sm">
+      <div class="overflow-x-auto">
+        <table class="min-w-full table">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-3 text-left text-gray-600">Order #</th>
+              <th class="px-4 py-3 text-left text-gray-600">Supplier</th>
+              <th class="px-4 py-3 text-left text-gray-600">Order Date</th>
+              <th class="px-4 py-3 text-left text-gray-600">Expected</th>
+              <th class="px-4 py-3 text-left text-gray-600">Status</th>
+              <th class="px-4 py-3 text-right text-gray-600">Total</th>
+              <th class="px-4 py-3 text-left text-gray-600">Invoice #</th>
+              <th class="px-4 py-3 text-left text-gray-600">Invoice Date</th>
+              <th class="px-4 py-3 text-left text-gray-600">Received</th>
+              <th class="px-4 py-3 text-right text-gray-600">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="orders-body" class="divide-y divide-gray-200">
+            <tr>
+              <td colspan="10" class="px-4 py-8 text-center text-gray-500">Loading orders…</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Create Order Modal -->
+  <div id="modal-create" class="modal">
+    <div class="bg-white w-full max-w-3xl rounded-xl shadow-xl border border-gray-200 p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold text-gray-900"><i class="fa fa-plus mr-2 text-blue-600"></i>Create Purchase Order</h3>
+        <button class="text-gray-400 hover:text-gray-600" onclick="closeCreate()"><i class="fa fa-times"></i></button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div class="md:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+          <select id="create-supplier" class="w-full border border-gray-300 rounded-lg px-3 py-2"></select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+          <input id="create-notes" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="e.g. urgent, deliver Tuesday">
+        </div>
+      </div>
+
+      <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+        <div class="flex flex-wrap items-end gap-3">
+          <div class="flex-1 min-w-[240px]">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Product</label>
+            <select id="create-product" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+              <option value="">Select supplier first…</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Qty</label>
+            <input id="create-qty" type="number" min="1" value="1" class="w-28 border border-gray-300 rounded-lg px-3 py-2">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Unit Cost (€)</label>
+            <input id="create-cost" type="number" step="0.01" min="0" class="w-36 border border-gray-300 rounded-lg px-3 py-2" placeholder="0.00">
+          </div>
+          <button id="btn-add-line" class="btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+            <i class="fa fa-plus mr-2"></i>Add Line
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto border border-gray-200 rounded-lg">
+        <table class="min-w-full">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">#</th>
+              <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Product</th>
+              <th class="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Barcode</th>
+              <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Qty</th>
+              <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Unit Cost</th>
+              <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Line Total</th>
+              <th class="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Remove</th>
+            </tr>
+          </thead>
+          <tbody id="create-lines" class="divide-y divide-gray-200">
+            <tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">No items yet</td></tr>
+          </tbody>
+          <tfoot class="bg-gray-50">
+            <tr>
+              <td colspan="5" class="px-3 py-3 text-right font-semibold text-gray-700">Total:</td>
+              <td id="create-total" class="px-3 py-3 text-right font-bold text-gray-900">€0.00</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="mt-5 flex justify-end gap-2">
+        <button class="btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg" onclick="closeCreate()">
+          Cancel
+        </button>
+        <button id="btn-save-order" class="btn bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg">
+          <i class="fa fa-check mr-2"></i>Save Order
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Receive / Update Status Modal -->
+  <div id="modal-receive" class="modal">
+    <div class="bg-white w-full max-w-2xl rounded-xl shadow-xl border border-gray-200 p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold text-gray-900">
+          <i class="fa fa-box-open mr-2 text-emerald-600"></i>Receive Order
+        </h3>
+        <button class="text-gray-400 hover:text-gray-600" onclick="closeReceive()"><i class="fa fa-times"></i></button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Number</label>
+          <input id="recv-invoice" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
+          <input id="recv-date" type="date" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="inline-flex items-center space-x-2">
+          <input id="recv-update-buy" type="checkbox" class="rounded">
+          <span class="text-sm text-gray-700">Update product <b>buy price</b> from this receipt</span>
+        </label>
+      </div>
+
+      <p class="text-sm text-gray-600 mb-2">If needed, you can override unit cost per line:</p>
+      <div id="recv-lines" class="space-y-2 max-h-56 overflow-auto border border-gray-200 rounded-lg p-3 text-sm">
+        <!-- filled dynamically -->
+      </div>
+
+      <div class="mt-5 flex justify-end gap-2">
+        <button class="btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg" onclick="closeReceive()">Close</button>
+        <button id="btn-mark-received" class="btn bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg">
+          <i class="fa fa-check mr-2"></i>Mark as Received
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div id="modal-delete" class="modal">
+    <div class="bg-white w-full max-w-md rounded-xl shadow-xl border border-gray-200 p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-2"><i class="fa fa-triangle-exclamation text-red-600 mr-2"></i>Delete Order</h3>
+      <p class="text-gray-700 mb-4">Are you sure you want to delete this order? You can’t undo this action.</p>
+      <div class="flex justify-end gap-2">
+        <button class="btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg" onclick="closeDelete()">Cancel</button>
+        <button id="btn-confirm-delete" class="btn bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 hidden">
+    <div class="bg-white border border-gray-200 rounded-lg shadow-lg p-4 flex items-center space-x-3">
+      <i id="toast-icon" class="fas fa-info-circle text-blue-500"></i>
+      <div>
+        <p id="toast-title" class="font-semibold text-gray-800">Info</p>
+        <p id="toast-message" class="text-gray-600">Message</p>
+      </div>
+      <button onclick="hideToast()" class="ml-4 text-gray-400 hover:text-gray-600">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // --- State ---
+    let SUPPLIERS = [];
+    let ORDERS = [];
+    let CURRENT_ORDER_ID = null;  // for receive/delete actions
+    let CREATE_LINES = [];        // {product_id, barcode, product_name, quantity_ordered, unit_cost}
+    let SUPPLIER_PRODUCTS = [];   // cache for current supplier in modal
+
+    // --- Utils ---
+    function fmtMoney(v){ return '€' + (Number(v||0).toFixed(2)); }
+    function showToast(msg, type='info'){
+      const toast = document.getElementById('toast');
+      const icon = document.getElementById('toast-icon');
+      const title = document.getElementById('toast-title');
+      const message = document.getElementById('toast-message');
+      const cfg = {
+        info:   { icon:'fa-info-circle', color:'text-blue-500', title:'Info' },
+        success:{ icon:'fa-check-circle', color:'text-green-600', title:'Success' },
+        warning:{ icon:'fa-exclamation-triangle', color:'text-yellow-600', title:'Warning' },
+        error:  { icon:'fa-times-circle', color:'text-red-600', title:'Error' }
+      }[type] || { icon:'fa-info-circle', color:'text-blue-500', title:'Info' };
+      icon.className = `fas ${cfg.icon} ${cfg.color}`;
+      title.textContent = cfg.title;
+      message.textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(()=>toast.classList.add('hidden'), 2500);
+    }
+    function hideToast(){ document.getElementById('toast').classList.add('hidden'); }
+    function statusBadge(s){
+      const val = (s||'').toLowerCase();
+      if(val==='received' || val==='ολοκληρωμένη') return `<span class="badge badge-received">Received</span>`;
+      if(val==='ordered' || val==='σε εξέλιξη') return `<span class="badge badge-ordered">Ordered</span>`;
+      if(val==='cancelled') return `<span class="badge badge-cancelled">Cancelled</span>`;
+      return `<span class="badge badge-pending">Pending</span>`;
+    }
+
+    // --- Load suppliers & orders ---
+    async function loadSuppliers(){
+      const res = await fetch('/api/suppliers');
+      const data = await res.json();
+      SUPPLIERS = data || [];
+      // filters
+      const sel = document.getElementById('filter-supplier');
+      sel.innerHTML = '<option value="">All suppliers</option>' + SUPPLIERS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+      // create modal
+      const sel2 = document.getElementById('create-supplier');
+      sel2.innerHTML = SUPPLIERS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+    }
+
+    async function loadOrders(){
+      const res = await fetch('/api/purchase-orders');
+      const data = await res.json();
+      ORDERS = Array.isArray(data) ? data : [];
+      renderOrders();
+    }
+
+    // --- Render table with filters ---
+    function renderOrders(){
+      const body = document.getElementById('orders-body');
+      body.innerHTML = '';
+      const fsup = document.getElementById('filter-supplier').value;
+      const fstat = document.getElementById('filter-status').value;
+      const q = (document.getElementById('filter-search').value || '').toLowerCase().trim();
+
+      let rows = ORDERS.filter(r=>{
+        if(fsup && String(r.supplier_id)!==String(fsup)) return false;
+        if(fstat && (r.status||'').toLowerCase()!==fstat) return false;
+        if(q){
+          const blob = `${r.order_number||''} ${r.notes||''} ${r.supplier_name||''}`.toLowerCase();
+          if(!blob.includes(q)) return false;
+        }
+        return true;
+      });
+
+      if(!rows.length){
+        body.innerHTML = `<tr><td colspan="10" class="px-4 py-8 text-center text-gray-500">No orders found</td></tr>`;
+        return;
+      }
+
+      rows.forEach(r=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="px-4 py-3 text-sm font-semibold text-gray-900">${r.order_number||('PO'+r.id)}</td>
+          <td class="px-4 py-3 text-sm text-gray-800">${r.supplier_name||'-'}</td>
+          <td class="px-4 py-3 text-sm text-gray-700">${r.order_date||''}</td>
+          <td class="px-4 py-3 text-sm text-gray-700">${r.expected_date||''}</td>
+          <td class="px-4 py-3">${statusBadge(r.status)}</td>
+          <td class="px-4 py-3 text-right font-semibold text-gray-900">${fmtMoney(r.total_amount||0)}</td>
+          <td class="px-4 py-3 text-sm text-gray-700">${r.invoice_number||''}</td>
+          <td class="px-4 py-3 text-sm text-gray-700">${r.invoice_date||''}</td>
+          <td class="px-4 py-3 text-sm text-gray-700">${r.date_received||''}</td>
+          <td class="px-4 py-3 text-right space-x-1">
+            <button class="btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded" onclick="exportSingle(${r.id})" title="Export CSV">
+              <i class="fa fa-file-csv"></i>
+            </button>
+            <button class="btn bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded" onclick="openReceive(${r.id})" title="Mark Received">
+              <i class="fa fa-box-open"></i>
+            </button>
+            <button class="btn bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded" onclick="openDelete(${r.id}, '${(r.status||'').toLowerCase()}')" title="Delete">
+              <i class="fa fa-trash"></i>
+            </button>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+    }
+
+    // --- Export ---
+    function exportAll(){
+      // server returns CSV with BOM
+      window.location.href = '/api/export/purchase-orders';
+    }
+    function exportSingle(id){
+      window.location.href = `/api/export/purchase-orders/${id}`;
+    }
+
+    // --- Create Order modal logic ---
+    function openCreate(){
+      CREATE_LINES = [];
+      document.getElementById('create-notes').value = '';
+      document.getElementById('create-product').innerHTML = `<option value="">Select supplier first…</option>`;
+      renderCreateLines();
+      document.getElementById('modal-create').classList.add('open');
+      // load products for initial supplier
+      loadSupplierProductsForModal();
+    }
+    function closeCreate(){ document.getElementById('modal-create').classList.remove('open'); }
+
+    async function loadSupplierProductsForModal(){
+      const sid = document.getElementById('create-supplier').value;
+      if(!sid){ SUPPLIER_PRODUCTS = []; return; }
+      const res = await fetch(`/api/products/supplier/${sid}`);
+      SUPPLIER_PRODUCTS = await res.json() || [];
+      const sel = document.getElementById('create-product');
+      sel.innerHTML = '<option value="">Select a product…</option>' + SUPPLIER_PRODUCTS.map(p=>(
+        `<option value="${p.id}" data-barcode="${p.barcode||''}" data-name="${p.name}">${p.name} — €${Number(p.cost_price||0).toFixed(2)} (stock ${p.quantity||0})</option>`
+      )).join('');
+    }
+
+    function renderCreateLines(){
+      const body = document.getElementById('create-lines');
+      const totalCell = document.getElementById('create-total');
+      body.innerHTML = '';
+      if(!CREATE_LINES.length){
+        body.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-gray-500">No items yet</td></tr>`;
+        totalCell.textContent = '€0.00';
+        return;
+      }
+      let total = 0;
+      CREATE_LINES.forEach((it, idx)=>{
+        const line = (Number(it.quantity_ordered||0) * Number(it.unit_cost||0));
+        total += line;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="px-3 py-2 text-sm text-gray-700">${idx+1}</td>
+          <td class="px-3 py-2 text-sm font-medium text-gray-900">${it.product_name||''}</td>
+          <td class="px-3 py-2 text-sm text-gray-700">${it.barcode||''}</td>
+          <td class="px-3 py-2 text-sm text-right">
+            <input type="number" min="1" value="${it.quantity_ordered}" class="w-20 border border-gray-300 rounded px-2 py-1 text-right" data-qty="${idx}">
+          </td>
+          <td class="px-3 py-2 text-sm text-right">
+            <input type="number" step="0.01" min="0" value="${Number(it.unit_cost||0).toFixed(2)}" class="w-24 border border-gray-300 rounded px-2 py-1 text-right" data-cost="${idx}">
+          </td>
+          <td class="px-3 py-2 text-sm text-right font-semibold text-gray-900">${fmtMoney(line)}</td>
+          <td class="px-3 py-2 text-sm text-right">
+            <button class="btn bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1.5 rounded" data-remove="${idx}"><i class="fa fa-times"></i></button>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+      totalCell.textContent = fmtMoney(total);
+    }
+
+    // Create modal events
+    document.getElementById('create-supplier').addEventListener('change', loadSupplierProductsForModal);
+    document.getElementById('btn-add-line').addEventListener('click', ()=>{
+      const sel = document.getElementById('create-product');
+      const pid = Number(sel.value||0);
+      if(!pid){ showToast('Please choose a product', 'warning'); return; }
+      const opt = sel.selectedOptions[0];
+      const barcode = opt?.dataset?.barcode || '';
+      const name = opt?.dataset?.name || opt?.textContent || '';
+      const qty = Math.max(1, Number(document.getElementById('create-qty').value||1));
+      const costInput = document.getElementById('create-cost').value;
+      // If no cost entered, try default from product list (cost_price)
+      let defaultCost = 0;
+      const found = SUPPLIER_PRODUCTS.find(p=>Number(p.id)===pid);
+      if(found) defaultCost = Number(found.cost_price||0);
+      const cost = Number(costInput!=='' ? costInput : defaultCost) || 0;
+
+      CREATE_LINES.push({
+        product_id: pid,
+        barcode,
+        product_name: name,
+        quantity_ordered: qty,
+        unit_cost: cost
+      });
+      renderCreateLines();
+      // reset qty/cost
+      document.getElementById('create-qty').value = 1;
+      document.getElementById('create-cost').value = '';
+    });
+
+    document.getElementById('create-lines').addEventListener('input', (e)=>{
+      const qtyIdx = e.target.getAttribute('data-qty');
+      const costIdx = e.target.getAttribute('data-cost');
+      if(qtyIdx!==null){
+        CREATE_LINES[qtyIdx].quantity_ordered = Math.max(1, Number(e.target.value||1));
+        renderCreateLines();
+      }else if(costIdx!==null){
+        CREATE_LINES[costIdx].unit_cost = Math.max(0, Number(e.target.value||0));
+        renderCreateLines();
+      }
+    });
+    document.getElementById('create-lines').addEventListener('click', (e)=>{
+      const rm = e.target.closest('[data-remove]');
+      if(rm){
+        const idx = Number(rm.getAttribute('data-remove'));
+        CREATE_LINES.splice(idx,1);
+        renderCreateLines();
+      }
+    });
+
+    // Save order
+    document.getElementById('btn-save-order').addEventListener('click', async ()=>{
+      const supplier_id = Number(document.getElementById('create-supplier').value||0);
+      if(!supplier_id){ showToast('Please select a supplier', 'warning'); return; }
+      if(!CREATE_LINES.length){ showToast('Please add at least one line', 'warning'); return; }
+      const payload = {
+        supplier_id,
+        notes: document.getElementById('create-notes').value||'',
+        items: CREATE_LINES.map(it=>({
+          product_id: it.product_id,
+          barcode: it.barcode,
+          product_name: it.product_name,
+          quantity_ordered: Number(it.quantity_ordered||0),
+          unit_cost: Number(it.unit_cost||0)
+        }))
+      };
+      try{
+        const res = await fetch('/api/purchase-orders', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const out = await res.json();
+        if(out.success){
+          closeCreate();
+          showToast('Order created', 'success');
+          await loadOrders();
+        }else{
+          showToast(out.message || 'Error creating order', 'error');
+        }
+      }catch(err){
+        console.error(err);
+        showToast('Error creating order', 'error');
+      }
+    });
+
+    // Toolbar buttons
+    document.getElementById('btn-new').addEventListener('click', openCreate);
+    document.getElementById('btn-export-all').addEventListener('click', exportAll);
+    document.getElementById('filter-supplier').addEventListener('change', renderOrders);
+    document.getElementById('filter-status').addEventListener('change', renderOrders);
+    document.getElementById('filter-search').addEventListener('input', renderOrders);
+
+    // --- Receive modal ---
+    function openReceive(order_id){
+      CURRENT_ORDER_ID = order_id;
+      // Load order items to allow overrides
+      loadOrderLinesForReceive(order_id);
+      document.getElementById('recv-invoice').value = '';
+      document.getElementById('recv-date').valueAsDate = new Date();
+      document.getElementById('recv-update-buy').checked = true;
+      document.getElementById('modal-receive').classList.add('open');
+    }
+    function closeReceive(){ document.getElementById('modal-receive').classList.remove('open'); }
+
+    async function loadOrderLinesForReceive(order_id){
+      const box = document.getElementById('recv-lines');
+      box.innerHTML = '<div class="text-gray-500">Loading…</div>';
+      try{
+        const res = await fetch(`/api/purchase-orders/${order_id}`);
+        const data = await res.json();
+        const items = data.items || [];
+        if(!items.length){ box.innerHTML = '<div class="text-gray-500">No items</div>'; return; }
+        box.innerHTML = '';
+        items.forEach(it=>{
+          const line = document.createElement('div');
+          line.className = 'flex items-center justify-between bg-white border border-gray-200 rounded px-3 py-2';
+          line.innerHTML = `
+            <div>
+              <div class="font-medium text-gray-900">${it.product_name || it.actual_product_name || ''}</div>
+              <div class="text-gray-500 text-xs">${it.barcode||''} • Qty ordered: ${it.quantity_ordered||0}</div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <label class="text-gray-600 text-sm">Unit Cost (€)</label>
+              <input type="number" step="0.01" min="0" value="${Number(it.unit_cost||0).toFixed(2)}"
+                     class="border border-gray-300 rounded px-2 py-1 w-28 text-right"
+                     data-pid="${it.product_id}">
+            </div>
+          `;
+          box.appendChild(line);
+        });
+      }catch(e){
+        console.error(e);
+        box.innerHTML = '<div class="text-red-600">Error loading items</div>';
+      }
+    }
+
+    document.getElementById('btn-mark-received').addEventListener('click', async ()=>{
+      if(!CURRENT_ORDER_ID) return;
+      const inv = document.getElementById('recv-invoice').value || null;
+      const idate = document.getElementById('recv-date').value || null;
+      const update_buy = document.getElementById('recv-update-buy').checked;
+      // collect overrides
+      const overrides = [...document.querySelectorAll('#recv-lines input[type=number]')].map(inp=>({
+        product_id: Number(inp.getAttribute('data-pid')),
+        new_cost: Number(inp.value||0)
+      }));
+      try{
+        const res = await fetch(`/api/purchase-orders/${CURRENT_ORDER_ID}/status`, {
+          method:'PUT',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            status: 'received',
+            invoice_number: inv,
+            invoice_date: idate,
+            update_buy_price: update_buy,
+            items: overrides
+          })
+        });
+        const out = await res.json();
+        if(out.success){
+          closeReceive();
+          showToast('Order marked as received', 'success');
+          await loadOrders();
+        }else{
+          showToast(out.message || 'Error updating status', 'error');
+        }
+      }catch(e){
+        console.error(e);
+        showToast('Error updating status', 'error');
+      }
+    });
+
+    // --- Delete modal ---
+    function openDelete(order_id, status){
+      if(status==='received' || status==='ολοκληρωμένη'){
+        showToast('Received orders cannot be deleted', 'warning');
+        return;
+      }
+      CURRENT_ORDER_ID = order_id;
+      document.getElementById('modal-delete').classList.add('open');
+    }
+    function closeDelete(){ document.getElementById('modal-delete').classList.remove('open'); }
+
+    document.getElementById('btn-confirm-delete').addEventListener('click', async ()=>{
+      if(!CURRENT_ORDER_ID) return;
+      try{
+        const res = await fetch(`/api/purchase-orders/${CURRENT_ORDER_ID}`, { method:'DELETE' });
+        const out = await res.json();
+        if(out.success){
+          closeDelete();
+          showToast('Order deleted', 'success');
+          await loadOrders();
+        }else{
+          showToast(out.error || out.message || 'Error deleting order', 'error');
+        }
+      }catch(e){
+        console.error(e);
+        showToast('Error deleting order', 'error');
+      }
+    });
+
+    // --- Init ---
+    document.addEventListener('DOMContentLoaded', async ()=>{
+      try{
+        await loadSuppliers();
+        await loadOrders();
+      }catch(e){
+        console.error(e);
+        showToast('Failed to load data', 'error');
+      }
+    });
+  </script>
+</body>
+</html>

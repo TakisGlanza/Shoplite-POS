@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .product-card, .compact-list-item { 
+            transition: all 0.3s ease; 
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        }
+        .product-card:hover { 
+            transform: translateY(-5px); 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .compact-list-item:hover {
+            background-color: #f8fafc;
+            transform: translateX(2px);
+        }
+        .low-stock { 
+            border-left: 4px solid #ef4444;
+            background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%);
+        }
+        .normal-stock { 
+            border-left: 4px solid #10b981;
+            background: linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%);
+        }
+        .section { display: none; }
+        .section.active { display: block; }
+        .view-option { transition: all 0.3s ease; }
+        .view-option.active { 
+            background-color: #3b82f6; 
+            color: white; 
+        }
+        .scanner-active { 
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+    </style>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3">
+  <link rel="alternate icon" href="/static/favicon.ico?v=3">
+  <link rel="icon" href="/static/img/favicon.ico?v=3">
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-6">
+        <!-- Header -->
+        <header class="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-200">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between">
+                <div class="flex items-center space-x-4 mb-4 lg:mb-0">
+                    <div class="bg-blue-500 rounded-lg p-3">
+                        <i class="fas fa-warehouse text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">Shoplite POS Inventory</h1>
+                        <p class="text-gray-600">Inventory & invoicing management</p>
+                    </div>
+                </div>
+                <div class="text-center lg:text-right">
+                    <div id="current-time" class="text-lg font-semibold text-gray-700">17:25:45</div>
+                    <div class="text-sm text-gray-500" id="stats">0 Products • 0 Units • 0 Low stock</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Sidebar -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Stock Intake -->
+                <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                    <h3 class="font-semibold text-lg mb-4 text-gray-800 flex items-center">
+                        <i class="fas fa-truck-loading mr-2 text-green-500"></i>
+                        Stock Intake
+                    </h3>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Barcode or Supplier Code</label>
+                        <input type="text" id="scanner-input" 
+                               class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 scanner-active"
+                               placeholder="Scan barcode or enter supplier number"
+                               autocomplete="off">
+                        <p class="text-xs text-gray-500 mt-2">💡 Each scan adds 1 unit automatically</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input type="number" id="quick-quantity" value="" min="1"
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-center focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
+                            <div class="w-full bg-green-100 text-green-800 border border-green-300 rounded-lg px-3 py-2 text-center font-semibold">
+                                ✅ Receive
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="manualQuickScan()" 
+                            class="w-full bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition font-semibold flex items-center justify-center space-x-2">
+                        <i class="fas fa-bolt"></i>
+                        <span>Manual Intake</span>
+                    </button>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                    <h3 class="font-semibold text-lg mb-4 text-gray-800 flex items-center">
+                        <i class="fas fa-bolt mr-2 text-green-500"></i>
+                        Quick Actions
+                    </h3>
+                    
+                    <div class="space-y-3">
+                        <button onclick="showSection('overview')" 
+                                class="w-full bg-gray-500 text-white py-3 px-4 rounded-lg hover:bg-gray-600 transition flex items-center justify-center space-x-2">
+                            <i class="fas fa-chart-bar"></i>
+                            <span>Overview</span>
+                        </button>
+                        
+                        <button onclick="showSection('add-product')" 
+                                class="w-full bg-purple-500 text-white py-3 px-4 rounded-lg hover:bg-purple-600 transition flex items-center justify-center space-x-2">
+                            <i class="fas fa-plus"></i>
+                            <span>New Product</span>
+                        </button>
+
+                        <button onclick="showSection('settings')" 
+                                class="w-full bg-yellow-500 text-white py-3 px-4 rounded-lg hover:bg-yellow-600 transition flex items-center justify-center space-x-2">
+                            <i class="fas fa-cog"></i>
+                            <span>Settings</span>
+                        </button>
+
+                        <button onclick="window.location.href='/open_pos_window'"
+                                class="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition flex items-center justify-center space-x-2">
+                            <i class="fas fa-cash-register"></i>
+                            <span>Point of Sale</span>
+                        </button>
+
+                        <button onclick="window.location.href='/analytics'"
+                                class="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition flex items-center justify-center space-x-2">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Analytics</span>
+                        </button>
+
+                        <button onclick="window.location.href='/purchase-orders'"
+                                class="w-full bg-orange-500 text-white py-3 px-4 rounded-lg hover:bg-orange-600 transition flex items-center justify-center space-x-2">
+                            <i class="fas fa-truck-loading"></i>
+                            <span>Purchase Orders</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Financial Summary -->
+                <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                    <h3 class="font-semibold text-lg mb-4 text-gray-800 flex items-center">
+                        <i class="fas fa-euro-sign mr-2 text-green-500"></i>
+                        Financials
+                    </h3>
+                    
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Cost Value:</span>
+                            <span id="cost-value" class="font-semibold">€0.00</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Retail Value:</span>
+                            <span id="retail-value" class="font-semibold">€0.00</span>
+                        </div>
+                        <div class="flex justify-between border-t pt-2">
+                            <span class="text-gray-700 font-semibold">Profit:</span>
+                            <span id="profit-value" class="font-semibold text-green-600">€0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Low Stock Alert -->
+                <div id="low-stock-alert" class="bg-red-50 border border-red-200 rounded-xl p-5 hidden">
+                    <h4 class="font-semibold text-red-800 mb-3 flex items-center">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        Alerts
+                    </h4>
+                    <div id="low-stock-list" class="text-sm text-red-700 space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="lg:col-span-3">
+                <!-- Overview Section -->
+                <div id="overview-section" class="section active">
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between mb-6">
+                            <h2 class="text-xl font-semibold text-gray-800 mb-2 lg:mb-0">Inventory Overview</h2>
+                            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                                <div class="flex space-x-2">
+                                    <div class="relative">
+                                        <input type="text" id="search-products" placeholder="Search..." 
+                                               class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64">
+                                        <div id="search-suggestions" class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg hidden max-h-60 overflow-y-auto"></div>
+                                    </div>
+                                    <select id="filter-category" 
+                                            class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">All categories</option>
+                                    </select>
+                                    <select id="filter-stock" 
+                                            class="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">All stock</option>
+                                        <option value="low">Low stock</option>
+                                        <option value="out">Out of stock</option>
+                                    </select>
+                                </div>
+                                <div class="flex space-x-2">
+                                    <!-- View Toggle Buttons -->
+                                    <div class="flex bg-gray-100 rounded-lg p-1">
+                                        <button id="grid-view-btn" 
+                                                class="view-option active px-3 py-2 rounded-md transition"
+                                                onclick="switchView('grid')">
+                                            <i class="fas fa-th"></i>
+                                        </button>
+                                        <button id="list-view-btn" 
+                                                class="view-option px-3 py-2 rounded-md transition"
+                                                onclick="switchView('list')">
+                                            <i class="fas fa-list"></i>
+                                        </button>
+                                    </div>
+                                    <button onclick="loadProducts()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Statistics Cards -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                            <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-blue-600 text-sm font-medium">Total Products</p>
+                                        <p id="stat-total-products" class="text-2xl font-bold text-blue-800">0</p>
+                                    </div>
+                                    <i class="fas fa-boxes text-blue-400 text-2xl"></i>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-green-600 text-sm font-medium">Total Stock</p>
+                                        <p id="stat-total-stock" class="text-2xl font-bold text-green-800">0</p>
+                                    </div>
+                                    <i class="fas fa-pallet text-green-400 text-2xl"></i>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-red-50 rounded-lg p-4 border border-red-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-red-600 text-sm font-medium">Low Stock</p>
+                                        <p id="stat-low-stock" class="text-2xl font-bold text-red-800">0</p>
+                                    </div>
+                                    <i class="fas fa-exclamation-triangle text-red-400 text-2xl"></i>
+                                </div>
+                            </div>
+
+                            <div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-purple-600 text-sm font-medium">Transactions</p>
+                                        <p id="stat-transactions" class="text-2xl font-bold text-purple-800">0</p>
+                                    </div>
+                                    <i class="fas fa-exchange-alt text-purple-400 text-2xl"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Products Container -->
+                        <div id="products-container">
+                            <!-- Grid View -->
+                            <div id="products-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                <div class="col-span-full text-center py-12">
+                                    <i class="fas fa-box-open text-4xl text-gray-400 mb-4"></i>
+                                    <p class="text-gray-500 text-lg">Loading products...</p>
+                                </div>
+                            </div>
+                            
+                            <!-- List View (hidden initially) -->
+                            <div id="products-list" class="hidden space-y-2">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Product Section -->
+                <div id="add-product-section" class="section">
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                        <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                            <i class="fas fa-plus-circle text-purple-500 mr-2"></i>
+                            Add New Product
+                        </h2>
+                        
+                        <form id="add-product-form" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Left Column -->
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Barcode *</label>
+                                    <input type="text" id="product-barcode" required
+                                           class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                           placeholder="Enter unique barcode">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                                    <input type="text" id="product-name" required
+                                           class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                           placeholder="Full product name">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                                    <textarea id="product-description" rows="3"
+                                              class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                              placeholder="Optional description"></textarea>
+                                </div>
+
+                                <!-- Supplier Code -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Supplier Code</label>
+                                    <input type="text" id="product-supplier-code"
+                                           class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                           placeholder="E.g. SUP123, VENDOR456, etc.">
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                                        <select id="product-category" 
+                                                class="w-full border border-gray-300 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <option value="">-- Select Category --</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Supplier</label>
+                                        <select id="product-supplier" 
+                                                class="w-full border border-gray-300 rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <option value="">-- Select Supplier --</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Right Column -->
+                            <div class="space-y-4">
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Cost Price (€) *</label>
+                                        <input type="number" id="product-cost-price" required step="0.01" min="0"
+                                               class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                               placeholder="0.00">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Sale Price (€) *</label>
+                                        <input type="number" id="product-retail-price" required step="0.01" min="0"
+                                               class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                               placeholder="0.00">
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Quantity *</label>
+                                        <input type="number" id="product-quantity" required min="0"
+                                               class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                               placeholder="0" value="">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Min Stock</label>
+                                        <input type="number" id="product-min-stock" min="0"
+                                               class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                               placeholder="0" value="">
+                                    </div>
+                                </div>
+                                
+                                <!-- Profit Calculation -->
+                                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                    <h4 class="font-semibold text-gray-800 mb-2">Profit Calculation</h4>
+                                    <div class="grid grid-cols-2 gap-2 text-sm">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Profit/Unit:</span>
+                                            <span id="profit-per-unit" class="font-semibold text-green-600">€0.00</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Total Profit:</span>
+                                            <span id="total-profit" class="font-semibold text-green-600">€0.00</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex space-x-3 pt-4">
+                                    <button type="submit" 
+                                            class="flex-1 bg-green-500 text-white py-3 px-6 rounded-lg hover:bg-green-600 transition font-semibold">
+                                        <i class="fas fa-save mr-2"></i>Save Product
+                                    </button>
+                                    <button type="button" onclick="showSection('overview')" 
+                                            class="bg-gray-500 text-white py-3 px-6 rounded-lg hover:bg-gray-600 transition font-semibold">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Settings Section -->
+                <div id="settings-section" class="section">
+                    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                        <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                            <i class="fas fa-cog text-yellow-500 mr-2"></i>
+                            Settings & Management
+                        </h2>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Categories Management -->
+                            <div class="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                                <h3 class="font-semibold text-lg mb-4 text-gray-800 flex items-center">
+                                    <i class="fas fa-tags text-blue-500 mr-2"></i>
+                                    Manage Categories
+                                </h3>
+                                
+                                <div class="space-y-4">
+                                    <div class="flex space-x-2">
+                                        <input type="text" id="new-category" 
+                                               class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                               placeholder="New category">
+                                        <button onclick="addCategory()" 
+                                                class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="categories-list" class="max-h-40 overflow-y-auto space-y-2">
+                                        <p class="text-gray-500 text-center py-2">Loading categories...</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Suppliers Management -->
+                            <div class="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                                <h3 class="font-semibold text-lg mb-4 text-gray-800 flex items-center">
+                                    <i class="fas fa-truck text-green-500 mr-2"></i>
+                                    Manage Suppliers
+                                </h3>
+                                
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-1 gap-2">
+                                        <input type="text" id="new-supplier-name" 
+                                               class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                               placeholder="Supplier name">
+                                        <input type="text" id="new-supplier-phone" 
+                                               class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                               placeholder="Phone">
+                                        <input type="email" id="new-supplier-email" 
+                                               class="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                               placeholder="Email">
+                                        <button onclick="addSupplier()" 
+                                                class="bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition flex items-center justify-center space-x-2">
+                                            <i class="fas fa-plus"></i>
+                                            <span>Add</span>
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="suppliers-list" class="max-h-40 overflow-y-auto space-y-2">
+                                        <p class="text-gray-500 text-center py-2">Loading suppliers...</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Edit Product -->
+                            <div class="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                                <h3 class="font-semibold text-lg mb-4 text-gray-800 flex items-center">
+                                    <i class="fas fa-edit text-purple-500 mr-2"></i>
+                                    Edit Product
+                                </h3>
+                                
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Product Barcode</label>
+                                        <input type="text" id="edit-barcode" 
+                                               class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                               placeholder="Enter barcode">
+                                       <button onclick="editProduct(document.getElementById('edit-barcode').value)" 
+        class="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600 transition mt-2 flex items-center justify-center space-x-2">
+    <i class="fas fa-search"></i>
+    <span>Load Product</span>
+</button>
+                                    </div>
+                                    
+                                    <div id="edit-product-form" class="hidden space-y-4">
+                                        <!-- Edit form will be loaded here -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Export & Reports -->
+                            <div class="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                                <h3 class="font-semibold text-lg mb-4 text-gray-800 flex items-center">
+                                    <i class="fas fa-file-export text-red-500 mr-2"></i>
+                                    Export & Reports
+                                </h3>
+                                
+                                <div class="space-y-4">
+                                    <!-- Export per Supplier -->
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Supplier Report</label>
+                                        <select id="export-supplier" 
+                                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500">
+                                            <option value="">Select Supplier</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <button onclick="exportSupplierReport()" 
+                                                class="bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition flex items-center justify-center space-x-2">
+                                            <i class="fas fa-download"></i>
+                                            <span>Supplier Report</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-4 right-4 p-4 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 hidden max-w-sm z-50">
+        <div class="flex items-center">
+            <span id="toast-icon" class="text-xl mr-3"></span>
+            <div>
+                <p id="toast-title" class="font-semibold"></p>
+                <p id="toast-message" class="text-sm opacity-90"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Basic variables
+        let allProducts = [];
+        let allCategories = [];
+        let allSuppliers = [];
+        let currentView = 'grid';
+        let scanTimeout = null;
+        let lastScannedBarcode = '';
+
+        // Initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
+
+        async function initializeApp() {
+            await loadProducts();
+            await loadCategories();
+            await loadSuppliers();
+            updateStats();
+            
+            updateTime();
+            setupEnhancedSearch();
+            setupAutoScanner();
+            setupProfitCalculator();
+            setupEventListeners();
+            
+            setInterval(updateTime, 1000);
+            document.getElementById('scanner-input').focus();
+            
+            // Load view preferences
+            const savedView = localStorage.getItem('preferredView');
+            if (savedView) {
+                switchView(savedView);
+            }
+        }
+
+        function setupEventListeners() {
+            // Add product form
+            document.getElementById('add-product-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                addProduct();
+            });
+
+            // Filters
+            document.getElementById('filter-category').addEventListener('change', applyFilters);
+            document.getElementById('filter-stock').addEventListener('change', applyFilters);
+        }
+
+        // View Toggle System
+        function switchView(view) {
+            currentView = view;
+            
+            // Update button states
+            document.getElementById('grid-view-btn').classList.toggle('active', view === 'grid');
+            document.getElementById('list-view-btn').classList.toggle('active', view === 'list');
+            
+            // Show/hide views
+            document.getElementById('products-grid').classList.toggle('hidden', view !== 'grid');
+            document.getElementById('products-list').classList.toggle('hidden', view !== 'list');
+            
+            // Save preference
+            localStorage.setItem('preferredView', view);
+            
+            // Re-render products in current view
+            displayProducts(allProducts);
+        }
+
+        // Display Products with both views
+        function displayProducts(products) {
+            displayGridView(products);
+            displayListView(products);
+        }
+
+        function displayGridView(products) {
+            const grid = document.getElementById('products-grid');
+            
+            // Apply filters
+            let filteredProducts = applyFilters(products);
+            
+            if (filteredProducts.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full text-center py-12">
+                        <i class="fas fa-box-open text-4xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-500 text-lg">No products found</p>
+                        <button onclick="showSection('add-product')" 
+                                class="mt-4 bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition">
+                            Add First Product
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = filteredProducts.map(product => {
+                const isLowStock = product.quantity <= product.min_stock;
+                const stockClass = isLowStock ? 'low-stock' : 'normal-stock';
+                const profit = product.retail_price - product.cost_price;
+                const profitPercentage = product.cost_price > 0 ? (profit / product.cost_price * 100).toFixed(1) : 0;
+
+                return `
+                    <div class="product-card rounded-lg p-4 border border-gray-200 ${stockClass}">
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="font-semibold text-gray-800 text-lg">${product.name}</h3>
+                            <div class="flex items-center">
+                                <span class="text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">${product.barcode}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-2 mb-4">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Stock:</span>
+                                <span class="font-semibold ${isLowStock ? 'text-red-600' : 'text-green-600'}">
+                                    ${product.quantity} pcs
+                                </span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Min:</span>
+                                <span>${product.min_stock} pcs</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Cost:</span>
+                                <span>€${parseFloat(product.cost_price).toFixed(2)}</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Sale:</span>
+                                <span class="font-semibold">€${parseFloat(product.retail_price).toFixed(2)}</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Profit:</span>
+                                <span class="font-semibold text-green-600">
+                                    €${profit.toFixed(2)} (${profitPercentage}%)
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="flex space-x-2">
+                            <button onclick="quickAddStock('${product.barcode}')" 
+                                    class="flex-1 bg-green-500 text-white py-2 px-3 rounded text-sm hover:bg-green-600 transition">
+                                +1
+                            </button>
+                            <button onclick="quickRemoveStock('${product.barcode}')" 
+                                    class="flex-1 bg-red-500 text-white py-2 px-3 rounded text-sm hover:bg-red-600 transition">
+                                -1
+                            </button>
+                            <button onclick="editProduct('${product.barcode}')" 
+                                    class="flex-1 bg-blue-500 text-white py-2 px-3 rounded text-sm hover:bg-blue-600 transition">
+                                Edit
+                            </button>
+                            <button onclick="deleteProduct('${product.barcode}')" 
+                                    class="flex-1 bg-red-600 text-white py-2 px-3 rounded text-sm hover:bg-red-700 transition">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function displayListView(products) {
+            const list = document.getElementById('products-list');
+            
+            let filteredProducts = applyFilters(products);
+            
+            if (filteredProducts.length === 0) {
+                list.innerHTML = '<div class="text-center py-8 text-gray-500">No products found</div>';
+                return;
+            }
+
+            list.innerHTML = filteredProducts.map(product => {
+                const isLowStock = product.quantity <= product.min_stock;
+                const stockClass = isLowStock ? 'low-stock' : 'normal-stock';
+                const profit = product.retail_price - product.cost_price;
+
+                return `
+                    <div class="compact-list-item rounded-lg p-3 border border-gray-200 ${stockClass}">
+                        <div class="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
+                            <div class="md:col-span-2">
+                                <div class="font-semibold text-gray-800">${product.name}</div>
+                                <div class="text-xs text-gray-500">${product.barcode}</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-sm font-semibold ${isLowStock ? 'text-red-600' : 'text-green-600'}">
+                                    ${product.quantity}
+                                </div>
+                                <div class="text-xs text-gray-500">pcs</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-sm">€${parseFloat(product.cost_price).toFixed(2)}</div>
+                                <div class="text-xs text-gray-500">cost</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-sm font-semibold">€${parseFloat(product.retail_price).toFixed(2)}</div>
+                                <div class="text-xs text-gray-500">sale</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-sm font-semibold text-green-600">
+                                    €${profit.toFixed(2)}
+                                </div>
+                                <div class="text-xs text-gray-500">profit</div>
+                            </div>
+                            <div class="flex space-x-1 justify-center">
+                                <button onclick="quickAddStock('${product.barcode}')" 
+                                        class="bg-green-500 text-white p-2 rounded hover:bg-green-600 transition">
+                                    <i class="fas fa-plus text-xs"></i>
+                                </button>
+                                <button onclick="quickRemoveStock('${product.barcode}')" 
+                                        class="bg-red-500 text-white p-2 rounded hover:bg-red-600 transition">
+                                    <i class="fas fa-minus text-xs"></i>
+                                </button>
+                                <button onclick="editProduct('${product.barcode}')" 
+                                        class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 transition">
+                                    <i class="fas fa-edit text-xs"></i>
+                                </button>
+                                <button onclick="deleteProduct('${product.barcode}')" 
+                                        class="bg-red-600 text-white p-2 rounded hover:bg-red-700 transition">
+                                    <i class="fas fa-trash text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function applyFilters(products) {
+            let filtered = [...products];
+            const categoryFilter = document.getElementById('filter-category').value;
+            const stockFilter = document.getElementById('filter-stock').value;
+            const searchTerm = document.getElementById('search-products').value.toLowerCase().trim();
+            
+            if (categoryFilter) {
+                filtered = filtered.filter(p => p.category_id == categoryFilter);
+            }
+            
+            if (stockFilter === 'low') {
+                filtered = filtered.filter(p => p.quantity <= p.min_stock);
+            } else if (stockFilter === 'out') {
+                filtered = filtered.filter(p => p.quantity === 0);
+            }
+            
+            if (searchTerm) {
+                filtered = filtered.filter(p => 
+                    p.name.toLowerCase().includes(searchTerm) || 
+                    p.barcode.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            return filtered;
+        }
+
+        // DATA LOADING FUNCTIONS
+        async function loadProducts() {
+            try {
+                const response = await fetch('/api/products');
+                if (!response.ok) {
+                    throw new Error('Error loading products');
+                }
+                allProducts = await response.json();
+                
+                displayProducts(allProducts);
+                updateStats();
+                checkLowStock();
+            } catch (error) {
+                console.error('Error loading products:', error);
+                showToast('Error', 'Unable to load products', 'error');
+                allProducts = [];
+                displayProducts(allProducts);
+            }
+        }
+
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/categories');
+                if (!response.ok) {
+                    throw new Error('Error loading categories');
+                }
+                allCategories = await response.json();
+                
+                displayCategories();
+                populateCategorySelects();
+            } catch (error) {
+                console.error('Error loading categories:', error);
+                allCategories = [];
+                displayCategories();
+                populateCategorySelects();
+            }
+        }
+
+        async function loadSuppliers() {
+            try {
+                const response = await fetch('/api/suppliers');
+                if (!response.ok) {
+                    throw new Error('Error loading suppliers');
+                }
+                allSuppliers = await response.json();
+                
+                displaySuppliers();
+                populateSupplierSelects();
+            } catch (error) {
+                console.error('Error loading suppliers:', error);
+                allSuppliers = [];
+                displaySuppliers();
+                populateSupplierSelects();
+            }
+        }
+
+        function displayCategories() {
+            const container = document.getElementById('categories-list');
+            
+            if (allCategories.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-2">No categories</p>';
+                return;
+            }
+
+            container.innerHTML = allCategories.map(category => `
+                <div class="flex justify-between items-center bg-white p-3 rounded border border-gray-200">
+                    <span class="font-medium">${category.name}</span>
+                    <button onclick="deleteCategory(${category.id})" 
+                            class="text-red-500 hover:text-red-700 transition">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function displaySuppliers() {
+            const container = document.getElementById('suppliers-list');
+            
+            if (allSuppliers.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-2">No suppliers</p>';
+                return;
+            }
+
+            container.innerHTML = allSuppliers.map(supplier => `
+                <div class="bg-white p-3 rounded border border-gray-200">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-medium">${supplier.name}</span>
+                        <button onclick="deleteSupplier(${supplier.id})" 
+                                class="text-red-500 hover:text-red-700 transition">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="text-xs text-gray-600 space-y-1">
+                        ${supplier.phone ? `<div><i class="fas fa-phone mr-1"></i>${supplier.phone}</div>` : ''}
+                        ${supplier.email ? `<div><i class="fas fa-envelope mr-1"></i>${supplier.email}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // POPULATE SELECTS
+        function populateCategorySelects() {
+            const selects = [
+                'product-category',
+                'filter-category'
+            ];
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    const baseOption = selectId === 'filter-category' ? 
+                        '<option value="">All categories</option>' : 
+                        '<option value="">-- Select Category --</option>';
+                    
+                    select.innerHTML = baseOption +
+                        allCategories.map(cat => `<option value="${cat.id}">${cat.name}</option>`).join('');
+                }
+            });
+        }
+
+        function populateSupplierSelects() {
+            const selects = [
+                'product-supplier',
+                'export-supplier'
+            ];
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    const baseOption = selectId === 'export-supplier' ? 
+                        '<option value="">Select Supplier</option>' : 
+                        '<option value="">-- Select Supplier --</option>';
+                    
+                    select.innerHTML = baseOption +
+                        allSuppliers.map(sup => `<option value="${sup.id}">${sup.name}</option>`).join('');
+                }
+            });
+        }
+
+        // STATISTICS & CHARTS
+       async function updateStats() {
+    try {
+        const response = await fetch('/api/stats');
+        const stats = await response.json();
+        
+        document.getElementById('stat-total-products').textContent = stats.total_products;
+        document.getElementById('stat-total-stock').textContent = stats.total_stock;
+        document.getElementById('stat-low-stock').textContent = stats.low_stock;
+        
+        // Today's transactions from API
+        document.getElementById('stat-transactions').textContent = stats.today_transactions ?? 0;
+        
+        document.getElementById('cost-value').textContent = `€${stats.total_cost.toFixed(2)}`;
+        document.getElementById('retail-value').textContent = `€${stats.total_retail.toFixed(2)}`;
+        document.getElementById('profit-value').textContent = `€${stats.total_profit.toFixed(2)}`;
+         
+                document.getElementById('stats').textContent = 
+                    `${stats.total_products} Products • ${stats.total_stock} Units • ${stats.low_stock} Low stock`;
+                    
+            } catch (error) {
+                console.error('Error stats:', error);
+            }
+        }
+
+        function checkLowStock() {
+            const lowStockProducts = allProducts.filter(p => p.quantity <= p.min_stock);
+            const alertDiv = document.getElementById('low-stock-alert');
+            const listDiv = document.getElementById('low-stock-list');
+            
+            if (lowStockProducts.length > 0) {
+                listDiv.innerHTML = lowStockProducts.map(product => `
+                    <div class="flex justify-between items-center">
+                        <span class="truncate">${product.name}</span>
+                        <span class="text-red-600 font-semibold ml-2">${product.quantity}</span>
+                    </div>
+                `).join('');
+                alertDiv.classList.remove('hidden');
+            } else {
+                alertDiv.classList.add('hidden');
+            }
+        }
+
+        // SEARCH & FILTERS
+        function setupEnhancedSearch() {
+            const searchInput = document.getElementById('search-products');
+            const suggestions = document.getElementById('search-suggestions');
+            
+            searchInput.addEventListener('input', function(e) {
+                const term = e.target.value.toLowerCase().trim();
+                
+                if (term.length < 2) {
+                    suggestions.classList.add('hidden');
+                    displayProducts(allProducts);
+                    return;
+                }
+                
+                const filtered = allProducts.filter(product => 
+                    product.name.toLowerCase().includes(term) || 
+                    product.barcode.toLowerCase().includes(term)
+                );
+                
+                displayProducts(filtered);
+                
+                if (filtered.length > 0) {
+                    suggestions.innerHTML = filtered.map(product => `
+                        <div class="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200" 
+                             onclick="selectSearchSuggestion('${product.barcode}')">
+                            <div class="font-medium">${product.name}</div>
+                            <div class="text-sm text-gray-500">${product.barcode} • Stock: ${product.quantity}</div>
+                        </div>
+                    `).join('');
+                    suggestions.classList.remove('hidden');
+                } else {
+                    suggestions.innerHTML = '<div class="p-3 text-gray-500">No results found</div>';
+                    suggestions.classList.remove('hidden');
+                }
+            });
+            
+            // Close suggestions
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !suggestions.contains(e.target)) {
+                    suggestions.classList.add('hidden');
+                }
+            });
+        }
+
+        function selectSearchSuggestion(barcode) {
+            const product = allProducts.find(p => p.barcode === barcode);
+            if (product) {
+                document.getElementById('search-products').value = product.name;
+                document.getElementById('search-suggestions').classList.add('hidden');
+                displayProducts([product]);
+            }
+        }
+
+        // SCANNER FUNCTIONALITY
+        function setupAutoScanner() {
+            const scannerInput = document.getElementById('scanner-input');
+            
+            scannerInput.addEventListener('input', function(e) {
+                const barcode = e.target.value.trim();
+                
+                if (scanTimeout) {
+                    clearTimeout(scanTimeout);
+                }
+                
+                if (barcode.length >= 1) {
+                    scanTimeout = setTimeout(() => {
+                        performAutoScan(barcode);
+                    }, 500);
+                }
+            });
+            
+            scannerInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    const barcode = e.target.value.trim();
+                    if (barcode.length >= 1) {
+                        performAutoScan(barcode);
+                        e.preventDefault();
+                    }
+                }
+            });
+        }
+
+        async function performAutoScan(barcode) {
+            if (!barcode || barcode === lastScannedBarcode) {
+                return;
+            }
+            
+            lastScannedBarcode = barcode;
+            const scannerInput = document.getElementById('scanner-input');
+            const quantity = parseInt(document.getElementById('quick-quantity').value) || 1;
+            
+            try {
+                const result = await quickReceiving(barcode, quantity);
+                
+                if (result.success) {
+                    showToast('Success Receiving', `${result.product_name} - ${quantity} unit received`, 'success');
+                    await loadProducts();
+                }
+                
+                scannerInput.value = '';
+                scannerInput.focus();
+                
+            } catch (error) {
+                console.error('Error automatic receiving:', error);
+                showToast('Error', 'Unable to receive', 'error');
+                scannerInput.value = '';
+            }
+        }
+
+        async function manualQuickScan() {
+            const barcode = document.getElementById('scanner-input').value.trim();
+            const quantity = parseInt(document.getElementById('quick-quantity').value) || 1;
+            
+            if (!barcode) {
+                showToast('Warning', 'Please enter a barcode or supplier number', 'warning');
+                return;
+            }
+            
+            await quickReceiving(barcode, quantity);
+            document.getElementById('scanner-input').value = '';
+            document.getElementById('scanner-input').focus();
+        }
+
+        async function quickReceiving(barcode, quantity = 1) {
+            try {
+                const response = await fetch('/api/receiving/quick-add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ barcode, quantity })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Success', `Added ${quantity} units`, 'success');
+                    await loadProducts();
+                    return { success: true, product_name: result.product_name };
+                } else {
+                    showToast('Error', result.message, 'error');
+                    return { success: false, message: result.message };
+                }
+            } catch (error) {
+                showToast('Error', 'Unable to receive', 'error');
+                return { success: false, message: 'Error receiving' };
+            }
+        }
+
+        // QUICK STOCK ACTIONS
+        async function quickAddStock(barcode) {
+            await quickReceiving(barcode, 1);
+        }
+
+        async function quickRemoveStock(barcode) {
+            try {
+                const response = await fetch('/api/scan/out', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ barcode, quantity: 1 })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Success', 'Removed 1 unit', 'success');
+                    await loadProducts();
+                } else {
+                    showToast('Error', result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Error', 'Unable to remove', 'error');
+            }
+        }
+
+        // DELETE PRODUCT
+        async function deleteProduct(barcode) {
+            if (!confirm('Are you sure you want to delete this product?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/products/${barcode}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Success', 'Product deleted', 'success');
+                    await loadProducts();
+                } else {
+                    showToast('Error', result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Error', 'Unable to delete product', 'error');
+            }
+        }
+
+        // PROFIT CALCULATOR
+        function setupProfitCalculator() {
+            const costInput = document.getElementById('product-cost-price');
+            const retailInput = document.getElementById('product-retail-price');
+            const quantityInput = document.getElementById('product-quantity');
+            
+            function updateProfit() {
+                const cost = parseFloat(costInput.value) || 0;
+                const retail = parseFloat(retailInput.value) || 0;
+                const quantity = parseInt(quantityInput.value) || 0;
+                
+                const profitPerUnit = retail - cost;
+                const totalProfit = profitPerUnit * quantity;
+                
+                document.getElementById('profit-per-unit').textContent = `€${profitPerUnit.toFixed(2)}`;
+                document.getElementById('total-profit').textContent = `€${totalProfit.toFixed(2)}`;
+            }
+            
+            costInput.addEventListener('input', updateProfit);
+            retailInput.addEventListener('input', updateProfit);
+            quantityInput.addEventListener('input', updateProfit);
+        }
+
+        // SECTION MANAGEMENT
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show the selected section
+            document.getElementById(sectionName + '-section').classList.add('active');
+        }
+
+        // UTILITY FUNCTIONS
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-GB');
+            document.getElementById('current-time').textContent = timeString;
+        }
+
+        function showToast(title, message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toast-icon');
+            const toastTitle = document.getElementById('toast-title');
+            const toastMessage = document.getElementById('toast-message');
+            
+            // Define colors and icons per type
+            const toastConfig = {
+                success: { color: 'bg-green-500', icon: '✅' },
+                error: { color: 'bg-red-500', icon: '❌' },
+                warning: { color: 'bg-yellow-500', icon: '⚠️' },
+                info: { color: 'bg-blue-500', icon: 'ℹ️' }
+            };
+            
+            const config = toastConfig[type] || toastConfig.info;
+            
+            toast.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 max-w-sm z-50 ${config.color} text-white`;
+            toastIcon.textContent = config.icon;
+            toastTitle.textContent = title;
+            toastMessage.textContent = message;
+            
+            toast.classList.remove('hidden');
+            toast.classList.remove('translate-x-full');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+                setTimeout(() => {
+                    toast.classList.add('hidden');
+                }, 300);
+            }, 3000);
+        }
+
+        // BASIC CRUD OPERATIONS
+        async function addCategory() {
+            const nameInput = document.getElementById('new-category');
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                showToast('Warning', 'Enter category name', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadCategories();
+                    nameInput.value = '';
+                    showToast('Success', 'New category added', 'success');
+                } else {
+                    showToast('Error', result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Error', 'Unable to add category', 'error');
+            }
+        }
+
+        async function deleteCategory(id) {
+            if (!confirm('Are you sure you want to delete this category?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/categories/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadCategories();
+                    showToast('Success', 'Category deleted', 'success');
+                } else {
+                    showToast('Error', result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Error', 'Unable to delete category', 'error');
+            }
+        }
+
+        async function addSupplier() {
+            const name = document.getElementById('new-supplier-name').value.trim();
+            const phone = document.getElementById('new-supplier-phone').value.trim();
+            const email = document.getElementById('new-supplier-email').value.trim();
+            
+            if (!name) {
+                showToast('Warning', 'Enter supplier name', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/suppliers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name: name,
+                        phone: phone,
+                        email: email
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadSuppliers();
+                    
+                    // Clear form
+                    document.getElementById('new-supplier-name').value = '';
+                    document.getElementById('new-supplier-phone').value = '';
+                    document.getElementById('new-supplier-email').value = '';
+                    
+                    showToast('Success', 'New supplier added', 'success');
+                } else {
+                    showToast('Error', result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Error', 'Unable to add supplier', 'error');
+            }
+        }
+
+        async function deleteSupplier(id) {
+            if (!confirm('Are you sure you want to delete this supplier?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/suppliers/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadSuppliers();
+                    showToast('Success', 'Supplier deleted', 'success');
+                } else {
+                    showToast('Error', result.message, 'error');
+                }
+            } catch (error) {
+                showToast('Error', 'Unable to delete supplier', 'error');
+            }
+        }
+
+      async function addProduct() {
+    const formData = {
+        barcode: document.getElementById('product-barcode').value.trim(),
+        name: document.getElementById('product-name').value.trim(),
+        description: document.getElementById('product-description').value.trim(),
+        category_id: document.getElementById('product-category').value || null,
+        supplier_id: document.getElementById('product-supplier').value || null,
+        supplier_code: document.getElementById('product-supplier-code').value.trim() || null,
+        cost_price: parseFloat(document.getElementById('product-cost-price').value) || 0,
+        retail_price: parseFloat(document.getElementById('product-retail-price').value) || 0,
+        quantity: parseInt(document.getElementById('product-quantity').value) || 0,
+        min_stock: parseInt(document.getElementById('product-min-stock').value) || 1
+    };
+
+    // Basic check
+    if (!formData.barcode || !formData.name) {
+        showToast('Error', 'Please fill the required fields', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            await loadProducts();
+            showSection('overview');
+            showToast('Success', 'New product added', 'success');
+            document.getElementById('add-product-form').reset();
+        } else {
+            showToast('Error', result.message || 'Error adding product', 'error');
+        }
+    } catch (e) {
+        showToast('Error', 'Unable to add product', 'error');
+    }
+}
+        // Edit product: load data and show form
+async function editProduct(barcode) {
+    try {
+        const response = await fetch(`/api/products/${barcode}`);
+        if (!response.ok) {
+            throw new Error('Error loading product');
+        }
+        const result = await response.json();
+        
+        if (!result.success || !result.product) {
+            throw new Error('Product not found in response');
+        }
+        
+        const product = result.product;
+
+        const editForm = document.getElementById('edit-product-form');
+        editForm.innerHTML = `
+            <div class="bg-white rounded-lg p-4 border border-green-200">
+                <h4 class="font-semibold text-green-800 mb-3">Edit: ${product.name}</h4>
+                
+                <form id="update-product-form" class="space-y-4">
+                    <input type="hidden" id="edit-original-barcode" value="${product.barcode}">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Barcode</label>
+                            <input type="text" id="edit-barcode-new" value="${product.barcode}" required
+                                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                            <input type="text" id="edit-name" value="${product.name}" required
+                                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <textarea id="edit-description" rows="2"
+                                  class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">${product.description || ''}</textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                            <select id="edit-category"
+                                    class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">-- Select Category --</option>
+                                ${allCategories.map(cat => 
+                                    `<option value="${cat.id}" ${cat.id == product.category_id ? 'selected' : ''}>${cat.name}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                            <select id="edit-supplier"
+                                    class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">-- Select Supplier --</option>
+                                ${allSuppliers.map(sup => 
+                                    `<option value="${sup.id}" ${sup.id == product.supplier_id ? 'selected' : ''}>${sup.name}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Supplier Code</label>
+                        <input type="text" id="edit-supplier-code" value="${product.supplier_code || ''}"
+                               class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="E.g. SUP123, VENDOR456, etc.">
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Cost Price (€)</label>
+                            <input type="number" id="edit-cost-price" value="${product.cost_price || 0}" step="0.01" min="0" required
+                                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Sale Price (€)</label>
+                            <input type="number" id="edit-retail-price" value="${product.retail_price || 0}" step="0.01" min="0" required
+                                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input type="number" id="edit-quantity" value="${product.quantity || 0}" min="0" required
+                                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
+                            <input type="number" id="edit-min-stock" value="${product.min_stock || 1}" min="1" required
+                                   class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    
+                    <div class="flex space-x-3 pt-4">
+                        <button type="submit" 
+                                class="flex-1 bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600 transition font-semibold">
+                            <i class="fas fa-save mr-2"></i>Save Changes
+                        </button>
+                        <button type="button" onclick="cancelEdit()" 
+                                class="bg-gray-500 text-white py-2 px-4 rounded hover:bg-gray-600 transition font-semibold">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        editForm.classList.remove('hidden');
+
+        document.getElementById('update-product-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            updateProduct();
+        });
+
+        editForm.scrollIntoView({ behavior: 'smooth' });
+        showSection('settings');
+
+    } catch (error) {
+        console.error('Error loading product:', error);
+        showToast('Error', 'Unable to load product', 'error');
+    }
+}
+
+// Product update function
+async function updateProduct() {
+    const originalBarcode = document.getElementById('edit-original-barcode').value;
+    const formData = {
+        barcode: document.getElementById('edit-barcode-new').value.trim(),
+        name: document.getElementById('edit-name').value.trim(),
+        description: document.getElementById('edit-description').value.trim(),
+        category_id: document.getElementById('edit-category').value || null,
+        supplier_id: document.getElementById('edit-supplier').value || null,
+        supplier_code: document.getElementById('edit-supplier-code').value.trim() || null,
+        cost_price: parseFloat(document.getElementById('edit-cost-price').value) || 0,
+        retail_price: parseFloat(document.getElementById('edit-retail-price').value) || 0,
+        quantity: parseInt(document.getElementById('edit-quantity').value) || 0,
+        min_stock: parseInt(document.getElementById('edit-min-stock').value) || 1
+    };
+    
+    // Basic check
+    if (!formData.barcode || !formData.name) {
+        showToast('Error', 'Please fill the required fields', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/products/${originalBarcode}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            await loadProducts();
+            cancelEdit();
+            showToast('Success', 'Product updated', 'success');
+        } else {
+            showToast('Error', result.message, 'error');
+        }
+    } catch (error) {
+        console.error('Error updating product:', error);
+        showToast('Error', 'Unable to update product', 'error');
+    }
+}
+
+// Cancel edit function
+function cancelEdit() {
+    const editForm = document.getElementById('edit-product-form');
+    editForm.classList.add('hidden');
+    editForm.innerHTML = '';
+    document.getElementById('edit-barcode').value = '';
+}
+
+// SIMPLE SUPPLIER REPORT - DIRECT DOWNLOAD ONLY
+async function exportSupplierReport() {
+    const supplierId = document.getElementById('export-supplier').value;
+    if (!supplierId) {
+        showToast('Warning', 'Select supplier', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/export/supplier/${supplierId}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch report');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        
+        const supplierName = document.getElementById('export-supplier').options[document.getElementById('export-supplier').selectedIndex].text;
+        const safeName = supplierName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const filename = `supplier_${supplierId}_${safeName}_report.csv`;
+        a.download = filename;
+        
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showToast('Success', 'Report downloaded successfully', 'success');
+        
+    } catch (error) {
+        console.error('Error export:', error);
+        showToast('Error', 'Unable to download report', 'error');
+    }
+}
+
+// EXPORT ORDERS
+async function exportPurchaseOrders() {
+    try {
+        window.open('/api/export/purchase-orders', '_blank');
+        showToast('Success', 'Orders report is opening...', 'success');
+    } catch (error) {
+        console.error('Error export:', error);
+        showToast('Error', 'Unable to fetch orders report', 'error');
+    }
+}
+    </script>
+</body>
+</html>

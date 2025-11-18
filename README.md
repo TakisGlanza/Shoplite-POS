@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo_light.png" width="140" />
+  <img src="images/logo_light.png" width="140" />
 </p>
 
 <h1 align="center">Shoplite POS</h1>
